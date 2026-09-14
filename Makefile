@@ -1,8 +1,22 @@
-SHELL := /bin/bash
+.PHONY: setup train predict lab mlflow test format
 
-.PHONY: setup
 setup:
-	pyenv local 3.11.3
-	python -m venv .venv
-	.venv/bin/python -m pip install --upgrade pip
-	.venv/bin/python -m pip install -r requirements_dev.txt
+	uv sync --all-groups
+
+train:
+	uv run python -m modeling.train
+
+predict:
+	uv run python -m modeling.predict models/linear data/X_test.csv data/y_test.csv
+
+lab:
+	uv run jupyter lab
+
+mlflow:
+	uv run mlflow ui
+
+test:
+	uv run pytest
+
+format:
+	uv run black .

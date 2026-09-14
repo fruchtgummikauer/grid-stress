@@ -8,7 +8,7 @@ from mlflow.sklearn import load_model
 
 warnings.filterwarnings("ignore")
 
-from feature_engineering import (
+from modeling.feature_engineering import (
     fill_missing_values,
     drop_column,
     transform_altitude,

@@ -11,27 +11,39 @@ There are two ways to do it:
 
 Data used is the [coffee quality dataset](https://github.com/jldbc/coffee-quality-database).
 
-## Requirements:
+## Requirements
 
-- pyenv with Python: 3.11.3
+- [uv](https://docs.astral.sh/uv/) (it installs the right Python for you — no pyenv, conda or pip needed)
+
+Install uv once per machine:
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
 ### Setup
 
-Use the requirements file in this repo to create a new environment.
-
-```BASH
+```bash
 make setup
 
-#or
-
-pyenv local 3.11.3
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements_dev.txt
+# or directly
+uv sync --all-groups
 ```
 
-The `requirements.txt` file contains the libraries needed for deployment.. of model or dashboard .. thus no jupyter or other libs used during development.
+That creates `.venv/`, downloads a suitable Python (`>=3.11`) if you don't have one, and installs
+every dependency pinned in `uv.lock` so the whole team gets identical versions.
+
+Dependencies are declared in `pyproject.toml`: the runtime set under `[project.dependencies]`
+(what deployment of the model or a dashboard needs) and the development tools — JupyterLab,
+pytest, black, nbdime — under the `dev` group. Use `uv sync` for runtime only, or
+`uv sync --all-groups` for everything.
+
+See [UV_SETUP.md](UV_SETUP.md) for the full guide: adding and upgrading packages, pinning the
+Python version, and troubleshooting.
 
 The MLFLOW URI should **not be stored on git**, you have two options, to save it locally in the `.mlflow_uri` file:
 
@@ -56,13 +68,13 @@ The code in the [config.py](modeling/config.py) will try to read it locally and 
 You can do it via the GUI or via [command line](https://www.mlflow.org/docs/latest/tracking.html#managing-experiments-and-runs-with-the-tracking-service-api) if you use the local mlflow:
 
 ```bash
-mlflow experiments create --experiment-name 0-template-ds-modeling
+uv run mlflow experiments create --experiment-name 0-template-ds-modeling
 ```
 
 Check your local mlflow
 
 ```bash
-mlflow ui
+uv run mlflow ui
 ```
 
 and open the link [http://127.0.0.1:5000](http://127.0.0.1:5000)
@@ -72,16 +84,19 @@ This will throw an error if the experiment already exists. **Save the experiment
 In order to train the model and store test data in the data folder and the model in models run:
 
 ```bash
-#activate env
-source .venv/bin/activate
+uv run python -m modeling.train
 
-python -m modeling.train
+# or
+make train
 ```
 
 In order to test that predict works on a test set you created run:
 
 ```bash
-python modeling/predict.py models/linear data/X_test.csv data/y_test.csv
+uv run python -m modeling.predict models/linear data/X_test.csv data/y_test.csv
+
+# or
+make predict
 ```
 
 ## About MLFLOW -- delete this when using the template
@@ -116,7 +131,7 @@ There is no constraint between runs to have the same metadata tracked. I.e. for 
 ### Handling Merge Conflicts in Jupyter Notebooks
 
 When working collaboratively, merge conflicts may occur in `.ipynb` files because notebooks are stored as JSON.  
-To simplify resolving these conflicts, this project uses **nbdime** (already included in `requirements_dev.txt`).
+To simplify resolving these conflicts, this project uses **nbdime** (already included in the `dev` dependency group).
 
 #### Enable once
 After setting up your environment, enable nbdime for Git:

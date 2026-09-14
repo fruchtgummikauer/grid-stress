@@ -1,4 +1,6 @@
 from logging import getLogger
+import os
+import shutil
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
@@ -109,9 +111,11 @@ def run_training():
 
         logger.info("this is obviously fishy")
         # saving the model
-        # logger.info("Saving model in the model folder")
-        # path = "models/linear"
-        # save_model(sk_model=reg, path=path)
+        logger.info("Saving model in the model folder")
+        path = "models/linear"
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        save_model(sk_model=reg, path=path)
         # logging the model to mlflow will not work without a AWS Connection setup.. too complex for now
 
 
