@@ -1,7 +1,7 @@
 [project]
-name = "ds-modeling-pipeline"
+name = "grid-stress"
 version = "0.1.0"
-description = "Coffee quality modeling pipeline with MLflow tracking"
+description = "Capstone Project on Forecasting the German Power Grid Load & Stability"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
