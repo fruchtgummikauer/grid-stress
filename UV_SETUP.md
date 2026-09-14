@@ -155,10 +155,10 @@ exact same interpreter, remove that line and commit the file.
 
 | File | Commit? | Why |
 |---|---|---|
-| `pyproject.toml` | ✅ yes | declares the dependencies |
-| `uv.lock` | ✅ yes | guarantees reproducible installs for everyone |
-| `.venv/` | ❌ no | already in `.gitignore`, rebuilt by `uv sync` |
-| `requirements*.txt`, `environment.yml` | 🗑️ deleted | replaced by `pyproject.toml` + `uv.lock`; recover from git history if ever needed |
+| `pyproject.toml` | Yes | declares the dependencies |
+| `uv.lock` | Yes | guarantees reproducible installs for everyone |
+| `.venv/` | No | already in `.gitignore`, rebuilt by `uv sync` |
+| `requirements*.txt`, `environment.yml` | Deleted | replaced by `pyproject.toml` + `uv.lock`; recover from git history if ever needed |
 
 If some external system still needs a `requirements.txt`, generate it instead of hand-editing:
 
