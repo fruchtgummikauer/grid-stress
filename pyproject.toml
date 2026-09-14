@@ -15,6 +15,7 @@ dependencies = [
     "plotly>=7.0.0",
     "xgboost>=3.2.0",
     "lightgbm>=4.7.0",
+    "missingno>=0.5.2",
 ]
 
 [dependency-groups]
