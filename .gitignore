@@ -137,3 +137,6 @@ models/*
 #config file has sensitive data
 .mlflow_uri
 mlflow.db
+
+# VSCode Makefile
+.vscode

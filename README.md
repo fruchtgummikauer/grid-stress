@@ -1,4 +1,4 @@
-# ds-modeling-pipeline
+# Example Setup
 
 Here you find a Skeleton project for building a simple model in a python script or notebook and log the results on MLFlow.
 
@@ -9,23 +9,9 @@ There are two ways to do it:
 * With Python scripts:
     The [main script](modeling/train.py) will go through exactly the same process as the jupyter notebook and also log the hyperparameters with MLflow
 
-Data used is the [coffee quality dataset](https://github.com/jldbc/coffee-quality-database).
+Example Data used is the [coffee quality dataset](https://github.com/jldbc/coffee-quality-database).
 
-## Requirements
-
-- [uv](https://docs.astral.sh/uv/) (it installs the right Python for you — no pyenv, conda or pip needed)
-
-Install uv once per machine:
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-### Setup
+## Setup
 
 ```bash
 make setup
