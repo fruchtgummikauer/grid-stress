@@ -77,7 +77,7 @@ That notebook is the single source of the dataset:
   does in its first cells.
 
 Known data characteristics established in EDA: hourly gaps at every **spring DST switch**
-(03:00, none in autumn); strong daily/weekly/annual cycles with a winter peak and a
+(02:00); strong daily/weekly/annual cycles with a winter peak and a
 Christmas/New Year drop; columns renamed to snake_case (`wind_off`, `wind_on`, `grid_load`,
 `residual_load`, `fc_grid_load`, `fc_res`, `fc_gen_wind_solar`).
 
