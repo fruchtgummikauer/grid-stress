@@ -191,7 +191,7 @@ Known characteristics to expect and confirm:
   rolling window or ACF over the raw index silently treats the jump as a single step.
   Name this in the notebook wherever it applies; do not repair it.
 - **Autumn DST fold.** The repeated 02:00 hour is not in the file. This is a second, less
-  obvious source of hour loss and must be reported alongside the spring gap.
+  obvious source of hour loss and must be reported alongside the spring gap. The autumn switch is already handled by SMARD.de
 - **Partial first and last calendar periods.** Data starts mid-week and ends mid-month, so
   every weekly/monthly aggregation goes through `period_mean`, never a bare `.resample()`.
 - **Partial final year.** 2026 stops on 09-09. Never compare a 2026 annual aggregate against
