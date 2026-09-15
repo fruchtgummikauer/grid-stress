@@ -5,8 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 Capstone project forecasting **German power grid load & stability** from SMARD data
-(Bundesnetzagentur). Team project (neuefische bootcamp), work happens on `feature/*` branches
+(Bundesnetzagentur).
+Team project (neuefische bootcamp) with 4 members, work happens on `feature/*` branches
 off `main`.
+
+- We use data for installed power plants, their power generation & Germany's power consumption to predict the power Germany needs in it's grid for 1 Day ahead.
+- We want to create our own model with a time-series analysis to spot days with risk of intervention measures by the grid operators (=TSOs).
+- We want to create a risk flag for this by using `residual load` as a target variable
+- Extreme cases of `residual load` are our risk cases
+  - high residual load (imports, tight margins)
+  - egative residual load (renewable oversupply, negative prices, downward redispatch)
+- Since we have public comparison values for `predicted residual load` by SMARD.de we can use this to validate our own models.
 
 ## Environment & commands
 
@@ -73,6 +82,12 @@ Christmas/New Year drop; columns renamed to snake_case (`wind_off`, `wind_on`, `
 `residual_load`, `fc_grid_load`, `fc_res`, `fc_gen_wind_solar`).
 
 ## Notebook conventions
+
+All notebooks will be created in `notebooks/` during the development phase.
+
+We are currently working on fetching the data and adding our own EDA.
+
+Every team member adds their EDA with their name in the filename to avoid merge conflicts.
 
 `notebooks/EDA-robert.ipynb` defines the plotting/aggregation helpers the EDA relies on; reuse
 them rather than re-deriving:
