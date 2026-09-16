@@ -17,6 +17,11 @@ off `main`.
   - egative residual load (renewable oversupply, negative prices, downward redispatch)
 - Since we have public comparison values for `predicted residual load` by SMARD.de we can use this to validate our own models.
 
+**Scope simplifications:**
+
+- Energy generation features are limited to only Wind + Solar. We have published day-ahead forecasts for those only which makes up our baseline to beat. Solar and Wind are also the largest variable sources
+- We are therefore excluding all other generation features (e.g. biomass, coal, water, ...) for the scope of this project
+
 ## Environment & commands
 
 `uv` manages the environment — never call `pip install`. `uv run` re-syncs the venv against
