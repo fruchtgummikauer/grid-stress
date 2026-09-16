@@ -1,4 +1,37 @@
-# Example Setup
+# Our Setup Notes
+
+## 1. Set Up the .env file for Netztransparenz.de
+
+We get the `reBAP` data from [the API of "netztransparenz.de"](https://api-portal.netztransparenz.de). For this API you need a free acount.
+
+> [!Important]
+> Create your **own account first** - register ➡️[here](https://api-portal.netztransparenz.de/registration)⬅️
+
+After login create a **new client** in "[my clients](https://api-portal.netztransparenz.de/my-clients)"
+
+> [!Warning]
+> When creating a new client you have to immediatly copy the `client secret`.
+>
+> You can't access it again!
+
+Create the real environment file with:
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` and replace the placeholders with the values from your client.
+
+> [!CAUTION]
+> The `.env` file holds credentials and must never be committed.
+>
+> It is already listed in `.gitignore`.
+>
+> Only `.env.example`, with placeholders, belongs in the repo.
+
+---
+
+# Template Setup Notes
 
 Here you find a Skeleton project for building a simple model in a python script or notebook and log the results on MLFlow.
 
