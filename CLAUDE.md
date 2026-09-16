@@ -77,9 +77,7 @@ That notebook is the single source of the dataset:
   does in its first cells.
 
 Known data characteristics established in EDA: hourly gaps at every **spring DST switch**
-(02:00); strong daily/weekly/annual cycles with a winter peak and a
-Christmas/New Year drop; columns renamed to snake_case (`wind_off`, `wind_on`, `grid_load`,
-`residual_load`, `fc_grid_load`, `fc_res`, `fc_gen_wind_solar`).
+(02:00).
 
 ## Notebook conventions
 
@@ -87,7 +85,16 @@ All notebooks will be created in `notebooks/` during the development phase.
 
 We are currently working on fetching the data and adding our own EDA.
 
-Every team member adds their EDA with their name in the filename to avoid merge conflicts.
+There are two naming tracks, and which one applies depends on why the notebook exists:
+
+- **Per-member exploration** — `EDA-<name>.ipynb`, e.g. `notebooks/EDA-robert.ipynb`. Personal
+  scratch work; the name keeps everyone out of everyone else's file, so merge conflicts do not
+  arise in the first place.
+- **Spec-driven consolidated notebooks** — named after the spec that defines them, e.g.
+  `notebooks/EDA-simple.ipynb` for [specs/01-Simple-EDA.md](specs/01-Simple-EDA.md) and
+  `notebooks/EDA-deep.ipynb` for [specs/02-Deep-EDA.md](specs/02-Deep-EDA.md). The filename is
+  fixed by the spec regardless of who runs it. These are shared files, so conflicts are real and
+  get resolved with `nbdime` (see below) rather than avoided by naming.
 
 `notebooks/EDA-robert.ipynb` defines the plotting/aggregation helpers the EDA relies on; reuse
 them rather than re-deriving:
