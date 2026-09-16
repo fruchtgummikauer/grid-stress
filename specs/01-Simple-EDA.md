@@ -1,7 +1,7 @@
 # 01 — Simple EDA of `data/smard.csv`
 
 Status: draft
-Branch: `feature/basic-eda-robert`
+Branch: `feature/*` off `main`
 Deliverable: `notebooks/EDA-simple.ipynb`
 Follow-up: [02-Deep-EDA.md](02-Deep-EDA.md) covers capacity drift, duck curve evolution, ramp
 rates and the SMARD forecast benchmark, and depends on the conventions this spec fixes.

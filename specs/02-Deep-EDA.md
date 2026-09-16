@@ -3,7 +3,7 @@
 Status: draft
 Branch: `feature/*` off `main`
 Deliverable: `notebooks/EDA-deep.ipynb`
-Depends on: [01-Simple-EDA.md](01-Simple-EDA.md), which must be complete and merged first.
+Depends on: [01-Simple-EDA.md](01-Simple-EDA.md), which must be complete and merged first. Do not execute 02-Deep-EDA, when there is no Simple-EDA notebook!
 
 ## Goal
 
