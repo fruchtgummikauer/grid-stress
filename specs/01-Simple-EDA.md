@@ -8,10 +8,10 @@ rates and the SMARD forecast benchmark, and depends on the conventions this spec
 
 ## Prerequisites
 
-The public holiday analysis (Behaviour 29) needs the `holidays` package, which is **not** in
-`pyproject.toml` at the time of writing. This spec does not authorise adding it — add it
-separately, confirm the venv is synced, and only then run this spec. Running before that makes
-Behaviour 29 fail loudly at import, which is the intended behaviour rather than a silent skip.
+The public holiday analysis (Behaviour 29) needs the `holidays` package. This was an open
+prerequisite when the spec was written; it has since been satisfied — `holidays>=0.104` is a
+runtime dependency in `pyproject.toml` (added in `6c999a3`), so Behaviour 29 simply runs. This
+spec still does not authorise adding dependencies of its own; see Out of bounds.
 
 ## Goal
 
@@ -341,7 +341,8 @@ Derived series, none of which are persisted:
 Known characteristics to expect and confirm:
 
 - One missing local hour at each spring DST switch — **five in this record**, all at local
-  03:00. The file skips the local 02:00 row: `2025-03-30` runs 01:00 → 03:00. The autumn
+  02:00: that is the wall-clock hour the switch skips, so the file has no row carrying that
+  label and `2025-03-30` runs 01:00 → 03:00. The autumn
   switch is already handled by SMARD: the repeated hour is collapsed rather than duplicated,
   so the file contains one 02:00 row and that hour is likewise absent.
 - Strong daily, weekly and annual cycles; winter peak; pronounced Christmas/New Year drop.
