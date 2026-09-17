@@ -71,7 +71,7 @@ notebooks/
     EDA-magc.ipynb              # per-member exploration
     EDA-robert.ipynb            # per-member exploration
     EDA-simple-claude.ipynb     # output of spec 01
-    team-EDA.ipynb              # deliverable of spec 03 (in progress)
+    team-EDA.ipynb              # output of spec 03
 ```
 
 ## Data pipeline
@@ -122,7 +122,7 @@ into a parent plus seven sub-specs (`03.1`–`03.7`), each a complete spec for o
 |---|---|
 | [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md) | Run → `notebooks/01_eda/EDA-simple-claude.ipynb` |
 | [02-Deep-EDA.md](.claude/specs/02-Deep-EDA.md) | **Superseded — ask Robert before running.** Rework pending. |
-| [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | In progress → `notebooks/01_eda/team-EDA.ipynb` (currently a stub) |
+| [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | Run → `notebooks/01_eda/team-EDA.ipynb` |
 
 **A spec run produces input for the team, not a finished deliverable.** We want Claude's analysis
 and reasoning, and we decide ourselves what to keep, adjust or throw away. Three consequences:
