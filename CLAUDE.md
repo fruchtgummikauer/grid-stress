@@ -122,7 +122,7 @@ The specs are run by the team members and outputs (Code, Claude's interpreation)
 | Spec | Status |
 |---|---|
 | [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md) | Run → `notebooks/01_eda/EDA-simple-claude.ipynb`. The output was edited after it was run (code & interpreation). Do not overwrite the notebook and always ask before you would attempt any edit. |
-| [02-Deep-EDA.md](.claude/specs/02-Deep-EDA.md) | **Superseded — ask Robert before running.** Rework pending. |
+| [02-Risk-Definition.md](.claude/specs/02-Risk-Definition.md) | Not yet run. Defines the risk-flag thresholds and day/intra-day labelling for `residual_load`, building on `team-EDA.ipynb`'s findings (§3.7, §6.3). Replaces the old, now-deleted `02-Deep-EDA.md`. |
 | [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | Run → `notebooks/01_eda/team-EDA.ipynb`. The team modified some plots and interpretations after the spec was run. Do not overwrite the notebook and always ask before you would attempt any edit. |
 
 **A spec run produces input for the team, not a finished deliverable.** We want Claude's analysis
@@ -197,7 +197,7 @@ these rather than re-deriving them:
 Conventions that go with them, fixed in [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md)
 (Behaviour 11–21) and inherited by every later spec:
 
-- **Units:** average **MWh** for levels, **MWh/day** for energy, **MW/h** for ramps. An hourly unaggregated reading is a level — label it `MWh`. Ask the user before you use `"MWh per hour"` and let the user decide to overwrite the unit in this case.
+- **Units:** average **MWh** for levels, **MWh/day** for energy, **MW/h** for ramps. An hourly unaggregated reading is a level — label it `MWh`; it is still energy, even for a single hourly observation. Ask the user before you use `"MWh per hour"`. `03-combined-cherry-picked-eda.md`'s Convention 4 relabels these as `MW` inside `team-EDA.ipynb` only — a notebook-local exception kept as-is, not a project-wide correction. New specs default to `MWh`.
 - **Weeks:** ISO, Monday start; the label side is stated wherever weeks are binned.
 - **Seasons:** meteorological, with `season_year = year + (month == 12)`.
 - **Descriptive slices** (tail hours, matched windows, longest runs) are computed inside their own plotting cell and never persisted onto `time_series`.
