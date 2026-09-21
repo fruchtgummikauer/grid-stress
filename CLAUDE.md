@@ -63,15 +63,15 @@ Actual project work lives in `notebooks/`:
 ```
 notebooks/
   API-connection.ipynb          # the data pipeline — both datasets
-  EDA-and-modeling.ipynb        # template leftover (coffee dataset)
+  EDA-and-modeling.ipynb        # template leftover (coffee dataset) - ignore
   00_project_management/
-    PM-Session1.ipynb           # roadmap, Miro/wiki links, domain terms
+    PM-Session1.ipynb           # roadmap, Miro/wiki links, domain terms - ignore, just for team documentation
   01_eda/
     EDA-hari.ipynb              # per-member exploration
     EDA-magc.ipynb              # per-member exploration
     EDA-robert.ipynb            # per-member exploration
-    EDA-simple-claude.ipynb     # output of spec 01
-    team-EDA.ipynb              # output of spec 03
+    EDA-simple-claude.ipynb     # output of spec 01, modified by the team
+    team-EDA.ipynb              # output of spec 03, modified by the team
 ```
 
 ## Data pipeline
@@ -115,14 +115,15 @@ skips cleanly when credentials are absent.
 
 ## Specs and how we use Claude's output
 
-Specs live in **`.claude/specs/`**, numbered. Spec 03 grew too large for one document and is split
-into a parent plus seven sub-specs (`03.1`–`03.7`), each a complete spec for one notebook section.
+Specs live in **`.claude/specs/`**, numbered. Spec 03 grew too large for one document and is split into a parent plus seven sub-specs (`03.1`–`03.7`), each a complete spec for one notebook section.
+
+The specs are run by the team members and outputs (Code, Claude's interpreation) are edited after that. Do not overwrite these edits. The specs are meant to be run once or if a team member explicitly tells Claude to overwrite (with additional user confirmation) an existing spec output notebook.
 
 | Spec | Status |
 |---|---|
-| [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md) | Run → `notebooks/01_eda/EDA-simple-claude.ipynb` |
+| [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md) | Run → `notebooks/01_eda/EDA-simple-claude.ipynb`. The output was edited after it was run (code & interpreation). Do not overwrite the notebook and always ask before you would attempt any edit. |
 | [02-Deep-EDA.md](.claude/specs/02-Deep-EDA.md) | **Superseded — ask Robert before running.** Rework pending. |
-| [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | Run → `notebooks/01_eda/team-EDA.ipynb` |
+| [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | Run → `notebooks/01_eda/team-EDA.ipynb`. The team modified some plots and interpretations after the spec was run. Do not overwrite the notebook and always ask before you would attempt any edit. |
 
 **A spec run produces input for the team, not a finished deliverable.** We want Claude's analysis
 and reasoning, and we decide ourselves what to keep, adjust or throw away. Three consequences:
@@ -196,12 +197,10 @@ these rather than re-deriving them:
 Conventions that go with them, fixed in [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md)
 (Behaviour 11–21) and inherited by every later spec:
 
-- **Units:** average **MW** for levels, **MWh/day** for energy, **MW/h** for ramps. An hourly
-  unaggregated reading is a level — label it `MW`, never `"MWh per hour"`.
+- **Units:** average **MWh** for levels, **MWh/day** for energy, **MW/h** for ramps. An hourly unaggregated reading is a level — label it `MWh`. Ask the user before you use `"MWh per hour"` and let the user decide to overwrite the unit in this case.
 - **Weeks:** ISO, Monday start; the label side is stated wherever weeks are binned.
 - **Seasons:** meteorological, with `season_year = year + (month == 12)`.
-- **Descriptive slices** (tail hours, matched windows, longest runs) are computed inside their own
-  plotting cell and never persisted onto `time_series`.
+- **Descriptive slices** (tail hours, matched windows, longest runs) are computed inside their own plotting cell and never persisted onto `time_series`.
 - **Holidays:** one source of truth — `holidays.country_holidays("DE")`, no `subdiv`.
 
 Matplotlib is used directly for the styled plots; seaborn for the seasonal/hue plots.
