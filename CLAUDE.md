@@ -93,14 +93,20 @@ the single source of each.
   must therefore read with `pd.read_csv(..., delimiter=";", encoding="utf-8-sig")` and convert the
   numeric columns (`str.replace(",", ".")` → `float`).
 
-Current extent: **41,107 hourly rows, 2022-01-01 00:00 → 2026-09-09 23:00**. Treat this as a
-snapshot, not a constant — the team intends to widen the fetch back to 2019, so **no literal
-calendar year belongs in notebook code**; derive year lists, anchors and colour maps from the
-loaded data (see `YEARS` below).
+Current extent: **67,336 hourly rows, 2019-01-01 00:00 → 2026-09-06 23:00**. Treat this as a
+snapshot, not a constant — the fetch has already been widened back to 2019 once (it previously
+started at 2022-01-01), and the end moves with every re-fetch, so **no literal calendar year
+belongs in notebook code**; derive year lists, anchors and colour maps from the loaded data (see
+`YEARS` below). Re-fetching is not neutral for anything computed over the whole record: the 2019
+backfill shifted whole-record quantiles of `residual_load`, which is why
+[02-Risk-Definition.md](.claude/specs/02-Risk-Definition.md) refuses to define a label against
+them.
 
-Known data characteristic established in EDA: **5 gaps, one per spring DST switch**. The missing
-local hour is 02:00; the first row after each jump is 03:00, so both descriptions appear in the
-specs and mean the same thing.
+Known data characteristic established in EDA: **one gap per spring DST switch** — 8 in the current
+extent, one per year covered, so the count grows with the record and must never be hardcoded. The
+missing local hour is 02:00; the first row after each jump is 03:00, so both descriptions appear in
+the specs and mean the same thing. The autumn fold is silently collapsed by SMARD rather than
+duplicated, so those days carry 24 rows and no gap marker.
 
 ### `data/rebap.csv` — cost data (Part 2)
 
