@@ -1,0 +1,9 @@
+- Forecast benchmark:
+  - for the included data on "fc_residual_load" we want the baseline benchmark (how good is SMARD's model)
+  - do the same for "fc_grid_load" and "fc_gen_wind_solar"
+  - for metrics we want MAE, RMSE and signed mean bias (so systematic over- and underforcasting is visble) together with the count of hours compared
+  - Report a normalised error so the pairs are comparable: MAE relative to the mean level of the corresponding actual.
+  - Do not use MAPE on residual_load or fc_residual_load — the series crosses zero, and percentage error explodes there. If MAPE appears at all it is for grid_load only, which stays well away from zero, and the reason is stated.
+  - Slice the error by time, each as its own view: per month over the record, by hour of day, by season, and by year. State whether the forecast is getting better or worse over the record and where its weak hours are.
+  - Slice the error by regime — error against the actual level, in bins across the residual_load range. This is the slice that matters most for the project: if the forecast is accurate on ordinary hours but degrades in the tails, then the extreme cases we care about are exactly the ones the public benchmark handles worst, and that is the gap our model is trying to fill. Report it either way, whichever way it comes out. The bins are a descriptive device under the inherited slice policy — document the edges, create no column.
+  - State the benchmark plainly at the end of the section: the error numbers our own model has to beat, in the same units and over the same period, so the modeling spec can be written against a concrete target rather than a vague ambition.
