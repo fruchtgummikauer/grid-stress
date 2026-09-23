@@ -76,13 +76,21 @@ notebooks/
   02_forecast_metrics/          # reserved for spec 04 -> forecast-metrics-claude.ipynb - not created yet
   03_risk_classification/
     risk-definition.ipynb       # adopted: spec 02 output
+  04_feature_engineering/
+    Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # per-member (Hari), experimental - do not read yet
 ```
+
+`Hari_Gridstress_feature_engineering_baselines_metrics.ipynb` is a per-member experiment that has not
+been cleaned up to the notebook conventions yet: it reads `smard_hourly_2019_2026-09-10.csv` from an
+absolute, machine-specific path instead of `data/smard.csv`. Do not read it or draw on it until the
+team has cleaned it up.
 
 ## Data pipeline
 
-**`data/` is gitignored** (`data/*.csv`, `data/metrics/*.csv`, `models/*`), so nothing in it comes
-with a clone. `data/*.csv` does not reach into subfolders, which is why `data/metrics/` has its own
-rule; both folders are kept in git by an empty `.gitkeep`.
+**`data/` is gitignored** (`data/*.csv`, `data/metrics/*.csv`, `data/risk_classification/*.csv`,
+`models/*`), so nothing in it comes with a clone. `data/*.csv` does not reach into subfolders, which
+is why `data/metrics/` and `data/risk_classification/` each have their own rule; all three folders
+are kept in git by an empty `.gitkeep`.
 [notebooks/API-connection.ipynb](notebooks/API-connection.ipynb) regenerates both raw datasets and
 is the single source of each. The risk-label files and the SMARD forecast-error files are derived
 from `smard.csv` by separate notebooks (see below).
@@ -133,7 +141,7 @@ skips cleanly when credentials are absent.
 spec-driven EDA, no model features. Personal `EDA-<name>` exploration is fine
 (`EDA-rebap-magc.ipynb`).
 
-### `data/risk_labels_daily.csv` / `data/risk_labels_hourly.csv` — risk labels (derived)
+### `data/risk_classification/risk_labels_{daily,hourly}.csv` — risk labels (derived)
 
 Not from an API: written by
 [notebooks/03_risk_classification/risk-definition.ipynb](notebooks/03_risk_classification/risk-definition.ipynb)
