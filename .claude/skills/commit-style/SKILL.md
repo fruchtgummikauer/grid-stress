@@ -24,4 +24,3 @@ Rules:
     - Implements .claude/specs/04-forecast-metrics.md (section 1 of 11).
 
 - Reference the spec: "Implements .claude/specs/02-Risk-Definition.md"
-- Never mention the tools used to write the code
