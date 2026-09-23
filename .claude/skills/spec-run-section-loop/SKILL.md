@@ -31,7 +31,9 @@ passes a review and a commit review before the next one starts.
    summary of what the section contains and any deviations from the spec. **Wait for approval.**
    Apply requested changes and repeat steps 2–4 until it is approved.
 5. **Clear outputs**: `uv run jupyter nbconvert --clear-output --inplace <notebook>`. Committed
-   notebooks carry no outputs.
+   notebooks carry no outputs. `--clear-output` keeps each cell's `metadata.execution`
+   timestamps, which churn on every run, so strip those too, e.g. with nbformat:
+   `for c in nb.cells: c.metadata.pop("execution", None)`.
 6. **Commit**: one commit per section, message per the `commit-style` skill. Stage only the
    notebook.
 7. **Commit review, then stop**: show the message and `git show --stat`. **Wait for approval.**
