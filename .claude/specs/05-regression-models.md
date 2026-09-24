@@ -151,7 +151,7 @@ apply.
   possible later, in the manner of parked [04.3-risk-label-link.md](04.3-risk-label-link.md).
 - The rest of parked [04.1-naive-baseline.md](04.1-naive-baseline.md): daily persistence and
   skill scores for SMARD against naive baselines.
-- MLflow logging and any change to `modeling/`. This is the follow-up spec.
+- MLflow logging and any change to `modeling/`.
 - Significance tests such as Diebold–Mariano. The monthly win count (Behaviour 23) is the
   robustness view in this spec.
 - A rich feature set (rolling statistics, ramps, interactions); that is for the team's
