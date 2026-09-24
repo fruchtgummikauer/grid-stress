@@ -1,4 +1,4 @@
-# AtlasFeature Library
+# PowerNap
 
 An **optional, experimental** GridStress feature reference for the team to review. Open the [interactive HTML](index.html) to browse feature definitions, runnable recipe examples, proposed models, and descriptive correlation heatmaps.
 
@@ -8,7 +8,7 @@ GitHub's file preview shows the HTML source. To use the interactive page **now**
 
 If the repository owner chooses to publish this proposal, GitHub Pages can host it directly at `https://fruchtgummikauer.github.io/grid-stress/AtlasFeatureLibrary/` **after** this branch is merged and Pages is configured to serve `main` from `/docs`. That URL is a proposed future address, not a live site.
 
-**Finding your way:** The **Feature table** is the overview of forecast candidate columns and recipes. **Variables & targets** explains inputs, observed calculations, and labels. **Models & tuning** lists recorded or proposed settings. The **Correlation map** measures pairwise co-movement in a stated sample; the **Relationship lab** illustrates forward-fold tests of added value and combinations. Its one measured pair example does not rank all features. **Team guide** explains how to contribute to each category. The same mapping is available under **What belongs in each Atlas section?** immediately below the page tabs.
+**Finding your way:** The **Feature table** is the overview of forecast candidate columns and recipes. **Variables & targets** explains inputs, observed calculations, and labels. **Models & tuning** lists recorded or proposed settings. The **Correlation map** measures pairwise co-movement in a stated sample, with a clickable pair inspector. Correlations do not rank predictive value. **Team guide** explains how to contribute to each category. The same mapping is available under **What belongs in each Atlas section?** immediately below the page tabs.
 
 ## Add variables, features, and models
 
