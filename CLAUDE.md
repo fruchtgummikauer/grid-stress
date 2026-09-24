@@ -80,7 +80,7 @@ notebooks/
   04_feature_engineering/
     Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # per-member (Hari), experimental - do not read yet
   05_modeling/
-    regression-models-claude.ipynb  # planned: spec 05 output (not yet run)
+    regression-models-claude.ipynb  # reference: spec 05 output
 ```
 
 `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb` is a per-member experiment that has not
@@ -191,20 +191,32 @@ marks them as the baseline to beat; our own model's files live in `data/models/`
   for wind + solar at `trailing_365` and `year`.
 - Plain CSV (`sep=","`, `decimal="."`, UTF-8), like the risk labels.
 
-### `data/models/model_*.csv` — our own forecasts and scoreboard (derived, planned)
+### `data/models/model_*.csv` — our own forecasts and scoreboard (derived)
 
-Not from an API: to be written by `notebooks/05_modeling/regression-models-claude.ipynb`
-(spec 05), which has not been run yet. The notebook writes them **only when its `EXPORT_ENABLED`
-toggle is on** (default off, while the team experiments); the folder itself exists and is not
-created by the notebook.
+Not from an API: written by
+[notebooks/05_modeling/regression-models-claude.ipynb](notebooks/05_modeling/regression-models-claude.ipynb)
+(spec 05) from `data/smard.csv` and `data/metrics/smard_forecast_errors_hourly.csv`. The notebook
+writes them **only when its `EXPORT_ENABLED` toggle is on** (default off, while the team
+experiments); both frames are always built in memory. The folder itself exists and is not created
+by the notebook.
 
 - `model_forecast_errors_hourly.csv` — long format, one row per test hour × model ×
-  split method: `timestamp`, `model`, `split_method`, `residual_load`, `forecast`, `lower`,
-  `upper`, `err_residual_load`. SMARD is **not** in this file (its hourly values are in
-  `data/metrics/smard_forecast_errors_hourly.csv`); join the two on `timestamp`.
+  split method, for the registry rows and seasonal naive: `timestamp`, `model`, `split_method`,
+  `residual_load`, `forecast`, `lower`, `upper`, `err_residual_load`. SMARD is **not** in this file
+  (its hourly values are in `data/metrics/smard_forecast_errors_hourly.csv`); join the two on
+  `timestamp` (plain local time). A registry row without a single forecast (a failed static fit)
+  still has its test hours here, left empty.
 - `model_scoreboard.csv` — long format (`model`, `split_method`, `table`, `metric`, `value`,
-  `count`) for the accuracy, extremes and intervals tables, including the SMARD and
-  seasonal-naive rows (`split_method = "none"`).
+  `count`), including the SMARD and seasonal-naive rows (`split_method = "none"`). Every value is
+  computed on the common test hours. Metrics per `table`:
+  - `accuracy`: `MAE`, `RMSE`, `bias`, `skill_pct` (`count` = hours), `months_beating_smard`
+    (`value` = months won, `count` = full calendar months), `fit_seconds` (`count` = fits)
+  - `extremes`: `{MAE,bias}_{bottom,ordinary,top}_by_{actual,forecast}` (`count` = hours in the
+    bin), `{MAE,bias}_day_{max,min}` (`count` = days)
+  - `intervals`: `coverage_pct`, `mean_width`
+
+  A metric that does not apply has no row: SMARD has no skill, months, fit-time or interval rows,
+  seasonal naive no fit time, and a row without forecasts has no rows at all.
 - Plain CSV (`sep=","`, `decimal="."`, UTF-8), like the other derived files.
 
 ## Specs and how we use Claude's output
@@ -227,7 +239,7 @@ towards its spec — cells that differ from the spec are the team's edits, not d
 | [04.3-risk-label-link.md](.claude/specs/04.3-risk-label-link.md) | Parked. Error on risk hours/days and flag agreement (thresholds applied to `fc_residual_load`). Not run with 04. |
 | [05-feature-engineering.md](.claude/specs/05-feature-engineering.md) | Draft, not yet run. Defines a fixed, leakage-safe 12-feature set for the residual-load model (calendar, cyclical, lag, rolling, capacity-normalised, forecast-derived), plus 2 dropped candidates and their reasons. Deliverable: `notebooks/04_feature_engineering/feature-engineering-claude.ipynb` (reference) and `data/features/residual_load_features.csv`. Not related to `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb`. |
 | [05.1-spectral-state.md](.claude/specs/05.1-spectral-state.md) | Parked. Trailing-window FFT/spectral-state features (band energy share, amplitude, entropy) as a candidate addition to spec 05's feature set, inspired by Hari's notebook. Not run with 05. |
-| [05-regression-models.md](.claude/specs/05-regression-models.md) | Draft, not yet run → `notebooks/05_modeling/regression-models-claude.ipynb` (reference once run) plus two optional `data/models/model_*.csv` exports. Day-ahead residual-load forecast issued at 18:00 on `DAY−1`, using SMARD's component forecasts as inputs (a post-processor of SMARD's forecast); seasonal naive, `sarimax_fourier`, LightGBM / XGBoost direct and hybrid; static and rolling split on the last 365 days; empirical 95 % intervals; scored against SMARD on identical hours. |
+| [05-regression-models.md](.claude/specs/05-regression-models.md) | Run → `notebooks/05_modeling/regression-models-claude.ipynb` (reference) plus two optional `data/models/model_*.csv` exports (`EXPORT_ENABLED`, default off). Day-ahead residual-load forecast issued at 18:00 on `DAY−1`, using SMARD's component forecasts as inputs (a post-processor of SMARD's forecast); seasonal naive, `sarimax_fourier`, LightGBM / XGBoost direct and hybrid (XGBoost off by default); static and rolling split on the last 365 days; empirical 95 % intervals; scored against SMARD on identical hours. Built section by section with team review of every section; the models part was split into Models (§4) and Fitting and leakage test (§5), so the notebook has 9 sections. Do not overwrite the notebook and always ask before you would attempt any edit. |
 
 Decision status of `risk-definition.ipynb` — more notebooks will follow before these are final:
 
