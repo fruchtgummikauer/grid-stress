@@ -173,7 +173,7 @@ apply.
 3. **Configuration cells**, each printed once as a summary. Nothing downstream hardcodes a value
    they hold.
    - `DATA_INFO`: `issue_time = 18:00` on `DAY−1`, `actuals_lag = 3 h`, and the capacity publication
-     rule "year `Y` is published on 1 January of `Y+1`, 00:00" (Behaviour 7).
+     rule "year `Y` is published on 1 January of `Y`, 00:00" (Behaviour 7).
    - `WINDOWS`: `test = 365 days`, `validation = 365 days`,
      `train = 24 months` (calendar months, i.e. `DateOffset(months=24)`, not 730 days),
      `refit_every = 30 days`.
@@ -216,14 +216,15 @@ apply.
    at the row's issue time (Forecast setting). SMARD forecasts for the target hour are available
    (published by 18:00 on `DAY−1`). Calendar features are always available.
 7. **Capacity look-ahead.** The `cap_*` columns are a yearly value. The project treats year `Y`'s
-   value as **published on 1 January of `Y+1`, 00:00** (team decision). A row uses the latest
+   value as **published on 1 January of `Y`, 00:00** (team decision). A row uses the latest
    capacity value published at or before its issue time.
-   - Most rows therefore use the previous calendar year's value.
-   - Delivery day 1 January is issued at 18:00 on 31 December, before the newest value is out,
-     so it uses the value from two years earlier. State this; it is the reason the rule is a
+   - Most rows therefore use the current calendar year's value.
+   - Delivery day 1 January is issued at 18:00 on 31 December, before the new year's value is
+     out, so it uses the previous year's value. State this; it is the reason the rule is a
      publication time and not a fixed year offset.
-   - Rows with no published value yet (the record's first year) have an empty capacity feature.
-     The default 24-month windows never reach them.
+   - Rows with no published value yet (only the record's first day, issued before the first
+     publication) have an empty capacity feature. That day is unforecastable anyway
+     (Behaviour 9), and the default 24-month windows never reach it.
 8. **Leakage test by truncation.** For a fixed-seed sample of delivery days drawn from the
    training, validation and test windows (default 20 days, a constant in that cell):
    - rebuild each day's design rows from data **cut off at that day's availability cutoff**:
@@ -354,7 +355,7 @@ apply.
     | smard_forecast | `fc_grid_load`, `fc_gen_wind_solar` for the target hour | published by 18:00 `DAY−1` |
     | lags | `residual_load` at the same local hour on `DAY−2` and on `DAY−7`; the last available `residual_load` at the cutoff | before the cutoff |
     | recent_smard_error | mean `err_grid_load` and mean `err_renewables` over the 24 h ending at the cutoff, read from `smard_forecast_errors_hourly.csv` | before the cutoff (same 3 h actuals lag); tests the reference notebook's observation that SMARD's error comes in episodes |
-    | capacity | `cap_wind_off + cap_wind_on + cap_solar` under the publication rule (Behaviour 7) | published 1 January of the following year |
+    | capacity | `cap_wind_off + cap_wind_on + cap_solar` under the publication rule (Behaviour 7) | published 1 January of its own year |
 
     Lags are durations. A lag whose source hour does not exist, such as local 02:00 on a spring
     DST day, is `NaN`; boosters handle missing values natively. It is never filled.
@@ -539,7 +540,7 @@ Series used:
 | `fc_grid_load`, `fc_gen_wind_solar` | exogenous inputs for `DAY` (and for the rest of `DAY−1` in SARIMAX) |
 | `fc_residual_load` | SMARD benchmark only, never a feature |
 | `err_grid_load`, `err_renewables` (from the SMARD errors file) | `recent_smard_error` feature, under the availability rule |
-| `cap_wind_off`, `cap_wind_on`, `cap_solar` | capacity feature; year `Y`'s value counts as published on 1 January of `Y+1` |
+| `cap_wind_off`, `cap_wind_on`, `cap_solar` | capacity feature; year `Y`'s value counts as published on 1 January of `Y` |
 
 Derived in this spec:
 
@@ -587,8 +588,8 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
   forecasts and corrected actuals. Both favour SMARD and our model equally. The caveat is stated
   in Behaviour 31 and cannot be corrected here.
 - **Capacity look-ahead.** Handled by the publication rule (Behaviour 7): year `Y`'s value is
-  usable from 1 January of `Y+1`, 00:00. Delivery day 1 January is issued the evening before, so
-  it still uses the value from two years earlier. The record's first year has no published value.
+  usable from 1 January of `Y`, 00:00. Delivery day 1 January is issued the evening before, so
+  it still uses the previous year's value. Only the record's first day has no published value.
   Within-year fleet growth is invisible in a yearly step value.
 - **Model failures.** A failed daily forecast leaves that day empty and removes its hours from
   the common hours of every row. A failed static fit takes that model × split method out of the
@@ -633,7 +634,7 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
       once; no downstream cell hardcodes a value they hold.
 - [ ] Every row is built at its own issue time (18:00 on `DAY−1`, 3 h actuals lag by default), and
       the truncation leakage test passes.
-- [ ] Capacity follows the publication rule (year `Y` usable from 1 January of `Y+1`), and the
+- [ ] Capacity follows the publication rule (year `Y` usable from 1 January of `Y`), and the
       1 January consequence is stated.
 - [ ] `fc_residual_load` is not a feature of any model.
 
