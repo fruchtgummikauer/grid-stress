@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from data_loading import get_years, load_smard
-from viz_helpers import (
+from streamlit.data_loading import get_years, load_smard
+from streamlit.viz_helpers import (
     COLORS,
     DAY_TYPE_COLOR,
     DIV_CMAP,

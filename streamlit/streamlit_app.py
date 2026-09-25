@@ -7,7 +7,7 @@ live on the EDA and Model pages, sourced from the notebooks that produced them.
 
 import streamlit as st
 
-from data_loading import get_years, load_smard
+from streamlit.data_loading import get_years, load_smard
 
 st.set_page_config(page_title="Grid Stress", page_icon="⚡", layout="wide")
 

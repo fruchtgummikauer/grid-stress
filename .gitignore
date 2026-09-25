@@ -132,6 +132,7 @@ dmypy.json
 data/*.csv
 data/metrics/*.csv
 data/risk_classification/*.csv
+data/features/*.csv
 models/*.sav
 mlruns
 models/*

@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from data_loading import load_smard
-from viz_helpers import COLORS, TAIL_COLOR, style_timeseries
+from streamlit.data_loading import load_smard
+from streamlit.viz_helpers import COLORS, TAIL_COLOR, style_timeseries
 
 st.set_page_config(page_title="Model — Grid Stress", page_icon="🧭", layout="wide")
 st.title("Risk Label & Forecast Benchmark")
