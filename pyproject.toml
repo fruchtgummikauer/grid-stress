@@ -30,6 +30,7 @@ dev = [
     "nbdime",
     "plotly>=7.0.0",
     "missingno>=0.5.2",
+    "gh>=0.0.4",
 ]
 
 [tool.uv]
