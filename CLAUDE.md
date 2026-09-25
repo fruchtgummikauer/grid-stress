@@ -207,6 +207,8 @@ towards its spec — cells that differ from the spec are the team's edits, not d
 | [04.1-naive-baseline.md](.claude/specs/04.1-naive-baseline.md) | Parked. Naive persistence baselines and skill scores. Not run with 04. |
 | [04.2-streamlit-views.md](.claude/specs/04.2-streamlit-views.md) | Parked. ISO-week level, single-window zoom, tolerance share — presentation only, never part of the benchmark. Not run with 04. |
 | [04.3-risk-label-link.md](.claude/specs/04.3-risk-label-link.md) | Parked. Error on risk hours/days and flag agreement (thresholds applied to `fc_residual_load`). Not run with 04. |
+| [05-feature-engineering.md](.claude/specs/05-feature-engineering.md) | Draft, not yet run. Defines a fixed, leakage-safe 12-feature set for the residual-load model (calendar, cyclical, lag, rolling, capacity-normalised, forecast-derived), plus 2 dropped candidates and their reasons. Deliverable: `notebooks/04_feature_engineering/feature-engineering-claude.ipynb` (reference) and `data/features/residual_load_features.csv`. Not related to `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb`. |
+| [05.1-spectral-state.md](.claude/specs/05.1-spectral-state.md) | Parked. Trailing-window FFT/spectral-state features (band energy share, amplitude, entropy) as a candidate addition to spec 05's feature set, inspired by Hari's notebook. Not run with 05. |
 
 Decision status of `risk-definition.ipynb` — more notebooks will follow before these are final:
 
