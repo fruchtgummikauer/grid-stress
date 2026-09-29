@@ -80,7 +80,7 @@ notebooks/
   04_feature_engineering/
     Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # per-member (Hari), experimental - do not read yet
   05_modeling/
-    regression-models-claude.ipynb  # reference: spec 05 output
+    regression-models-claude.ipynb  # reference: spec 06 output
 ```
 
 `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb` is a per-member experiment that has not
@@ -195,7 +195,7 @@ marks them as the baseline to beat; our own model's files live in `data/models/`
 
 Not from an API: written by
 [notebooks/05_modeling/regression-models-claude.ipynb](notebooks/05_modeling/regression-models-claude.ipynb)
-(spec 05) from `data/smard.csv` and `data/metrics/smard_forecast_errors_hourly.csv`. The notebook
+(spec 06) from `data/smard.csv` and `data/metrics/smard_forecast_errors_hourly.csv`. The notebook
 writes them **only when its `EXPORT_ENABLED` toggle is on** (default off, while the team
 experiments); both frames are always built in memory. The folder itself exists and is not created
 by the notebook.
@@ -242,7 +242,7 @@ towards its spec — cells that differ from the spec are the team's edits, not d
 | [04.3-risk-label-link.md](.claude/specs/04.3-risk-label-link.md) | Parked. Error on risk hours/days and flag agreement (thresholds applied to `fc_residual_load`). Not run with 04. |
 | [05-feature-engineering.md](.claude/specs/05-feature-engineering.md) | Draft, not yet run. Defines a fixed, leakage-safe 12-feature set for the residual-load model (calendar, cyclical, lag, rolling, capacity-normalised, forecast-derived), plus 2 dropped candidates and their reasons. Deliverable: `notebooks/04_feature_engineering/feature-engineering-claude.ipynb` (reference) and `data/features/residual_load_features.csv`. Not related to `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb`. |
 | [05.1-spectral-state.md](.claude/specs/05.1-spectral-state.md) | Parked. Trailing-window FFT/spectral-state features (band energy share, amplitude, entropy) as a candidate addition to spec 05's feature set, inspired by Hari's notebook. Not run with 05. |
-| [06-regression-models.md](.claude/specs/06-regression-models.md) | Run → `notebooks/05_modeling/regression-models-claude.ipynb` (reference) plus two optional `data/models/model_*.csv` exports (`EXPORT_ENABLED`, default off). Day-ahead residual-load forecast issued at 18:00 on `DAY−1`, using SMARD's component forecasts as inputs (a post-processor of SMARD's forecast); seasonal naive, `sarimax_fourier`, LightGBM / XGBoost direct and hybrid (XGBoost off by default); static and rolling split on the last 365 days; empirical 95 % intervals; scored against SMARD on identical hours. Built section by section with team review of every section; the models part was split into Models (§4) and Fitting and leakage test (§5), so the notebook has 9 sections. Do not overwrite the notebook and always ask before you would attempt any edit. |
+| [06-regression-models.md](.claude/specs/06-regression-models.md) | Run → `notebooks/05_modeling/regression-models-claude.ipynb` (reference) plus two optional `data/models/model_*.csv` exports (`EXPORT_ENABLED`, default off). Day-ahead residual-load forecast issued at 18:00 on `DAY−1` (actuals usable up to the 16:00 cutoff, a 2 h lag), using SMARD's component forecasts as inputs (a post-processor of SMARD's forecast); seasonal naive, LightGBM / XGBoost direct and hybrid as sklearn pipelines tuned with `GridSearchCV` / `RandomizedSearchCV` over the validation walk-forward (`SEARCH`), and `sarimax_fourier` (off by default, it dominates the runtime); static and rolling split on the last 365 days; empirical 95 % intervals; scored against SMARD on identical hours. Built section by section with team review of every section; the models part was split into Models (§4) and Fitting and leakage test (§5), so the notebook has 9 sections, each ending in a self-check. The team then refactored it section by section (branch `refactor/regression-models`), and the spec was updated to describe the refactored notebook, with its Behaviour numbers kept because specs 06.2 and 07 cite them. Do not overwrite the notebook and always ask before you would attempt any edit. |
 | [07-hybrid-linear-stage.md](.claude/specs/07-hybrid-linear-stage.md) | Draft, parked. Diagnoses why the direct boosters beat the hybrids on overall MAE (suspect: the linear stage's trend, extrapolated over the static test year) while the hybrids win the tails; adds a no-trend hybrid variant. Changes `regression-models-claude.ipynb` via proposal cells only. Not run until a team member asks. |
 
 Decision status of `risk-definition.ipynb` — more notebooks will follow before these are final:
