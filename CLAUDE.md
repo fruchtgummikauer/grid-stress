@@ -211,12 +211,15 @@ by the notebook.
   computed on the common test hours. Metrics per `table`:
   - `accuracy`: `MAE`, `RMSE`, `bias`, `skill_pct` (`count` = hours), `months_beating_smard`
     (`value` = months won, `count` = full calendar months), `fit_seconds` (`count` = fits)
-  - `extremes`: `{MAE,bias}_{bottom,ordinary,top}_by_{actual,forecast}` (`count` = hours in the
-    bin), `{MAE,bias}_day_{max,min}` (`count` = days)
+  - `extremes`: `{MAE,bias}_{low_extreme,ordinary,high_extreme}_by_{actual,forecast}` and
+    `skill_pct_{low_extreme,ordinary,high_extreme}_by_actual` (`count` = hours in the bin;
+    `low_extreme` ≤ P1, `ordinary` P25–P75, `high_extreme` > P99 of the test window's actual),
+    `{MAE,bias,skill_pct}_day_{max,min}` (`count` = days)
   - `intervals`: `coverage_pct`, `mean_width`
 
   A metric that does not apply has no row: SMARD has no skill, months, fit-time or interval rows,
-  seasonal naive no fit time, and a row without forecasts has no rows at all.
+  seasonal naive no fit time, the forecast-binned extremes have no skill (each row fills its bins
+  with different hours), and a row without forecasts has no rows at all.
 - Plain CSV (`sep=","`, `decimal="."`, UTF-8), like the other derived files.
 
 ## Specs and how we use Claude's output
