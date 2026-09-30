@@ -62,7 +62,8 @@ notebooks/
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
-    regression-visualization-best-models.ipynb  # spec 09: top picks per category vs SMARD
+    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category vs SMARD
+    visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
 ```
 
 - `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md) (Home / EDA /
@@ -82,6 +83,7 @@ re-running their producer.
 | `data/smard.csv` | API-connection (SMARD API, no key) | **German CSV**: `sep=";"`, `decimal=","`, `utf-8-sig` |
 | `data/rebap.csv` | API-connection (netztransparenz, OAuth2 via `.env`) | semicolon CSV |
 | `data/risk_classification/risk_labels_{daily,hourly}.csv` | `risk-definition.ipynb` | plain CSV |
+| `data/risk_classification/model_risk_labels_{daily,hourly}.csv` | `visualization-02-classification-risk-labels.ipynb` (spec 10), if `EXPORT_ENABLED` (default on) | plain CSV |
 | `data/metrics/smard_*.csv` | `forecast-metrics-claude.ipynb` (spec 04) | plain CSV |
 | `data/models/model_*.csv` | `regression-models-claude.ipynb` (spec 06), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
 | `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
@@ -101,14 +103,15 @@ Column layouts are defined in the producing spec. Gotchas:
   calculation after modelling. Never paste credentials into a notebook.
 - **Risk labels: an empty flag means "not evaluable"** (first 365 days, incomplete day), never "not
   at risk" — never `fillna(False)`. Apply the exported thresholds to other series by joining on
-  `date`; never recompute them against another series.
+  `date`; never recompute them against another series. Same rule for `model_risk_labels_*.csv`,
+  where `model` in `high_*` / `low_*` columns is that direction's pick (`high_model` / `low_model`).
 - **SMARD errors:** `err_* = forecast − actual` (positive = over-forecast); missing forecasts stay
   empty. `smard_forecast_errors_hourly.csv` is the source of truth for re-scoring any window. Use
   `offset_max_h` / `offset_min_h`, not timestamp subtraction (1 h off on DST days).
 - **Model exports:** SMARD's hourly values are not in `model_forecast_errors_hourly.csv` — join
   `data/metrics/` on `timestamp`. The `-magc` scoreboard predates the refactor (bins `bottom` /
   `ordinary` / `top`, no `below_zero`, 24-month window) — don't compare it with the `-claude` one by
-  metric name. `regression-visualization-best-models.ipynb` reads only the `-claude` exports; its
+  metric name. `visualization-01-regression-best-models.ipynb` reads only the `-claude` exports; its
   self-check stops when they and `data/metrics/` come from different runs.
 - **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops
   after a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle —
@@ -135,7 +138,8 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
 | 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
-| 09 Best-model plots | Run → `regression-visualization-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
+| 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
+| 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run* |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
 Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent

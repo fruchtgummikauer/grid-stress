@@ -2,8 +2,8 @@
 
 - Status: run 2026-09-30. Numbered 09 on purpose (team choice).
 - Branch: `feature/selected-best-model-plots`
-- Deliverable: `notebooks/05_modeling/regression-visualization-best-models.ipynb` (renamed from
-  `regression-best-models.ipynb`). It writes no files.
+- Deliverable: `notebooks/05_modeling/visualization-01-regression-best-models.ipynb` (renamed from
+  `regression-best-models.ipynb`, then `regression-visualization-best-models.ipynb`). It writes no files.
 - Depends on: the exports of [06-regression-models.md](06-regression-models.md) (Behaviour 28), and
   `data/metrics/smard_forecast_errors_hourly.csv` from [04-forecast-metrics.md](04-forecast-metrics.md).
 - Built one section at a time, with a team review of each section (`spec-run-section-loop` skill).
