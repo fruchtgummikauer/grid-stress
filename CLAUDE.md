@@ -62,7 +62,7 @@ notebooks/
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
-    regression-visualization-best-models.ipynb  # spec 09: top picks per category vs SMARD
+    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category vs SMARD
 ```
 
 - `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md) (Home / EDA /
@@ -108,7 +108,7 @@ Column layouts are defined in the producing spec. Gotchas:
 - **Model exports:** SMARD's hourly values are not in `model_forecast_errors_hourly.csv` — join
   `data/metrics/` on `timestamp`. The `-magc` scoreboard predates the refactor (bins `bottom` /
   `ordinary` / `top`, no `below_zero`, 24-month window) — don't compare it with the `-claude` one by
-  metric name. `regression-visualization-best-models.ipynb` reads only the `-claude` exports; its
+  metric name. `visualization-01-regression-best-models.ipynb` reads only the `-claude` exports; its
   self-check stops when they and `data/metrics/` come from different runs.
 - **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops
   after a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle —
@@ -135,7 +135,7 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
 | 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
-| 09 Best-model plots | Run → `regression-visualization-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
+| 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
 Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent

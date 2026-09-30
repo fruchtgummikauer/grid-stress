@@ -1,8 +1,8 @@
 # 10 — Model Risk Labeling: Spec 02's Risk Flags on Our Best Forecasts
 
 - Status: **draft** 2026-09-30, not run. Branch: `feature/risk-classification-visualization`.
-- Deliverable: `notebooks/03_risk_classification/classification-visualization-risk-labels.ipynb`
-  (no suffix: team choice, named to match `regression-visualization-best-models.ipynb`). It writes
+- Deliverable: `notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb`
+  (no suffix: team choice, numbered after `visualization-01-regression-best-models.ipynb`). It writes
   two label files (Behaviour 16).
 - Depends on: the risk labels of [02-Risk-Definition.md](02-Risk-Definition.md)
   (`data/risk_classification/`), the exports of [06-regression-models.md](06-regression-models.md)
@@ -32,7 +32,7 @@ spec 09's rank-1 model for each tail:
 3. Draw three plots per extreme, reusable in Streamlit and the presentation.
 4. Bundle the findings in one closing section.
 
-The notebook is **concise**, like `regression-visualization-best-models.ipynb`: it explains no
+The notebook is **concise**, like `visualization-01-regression-best-models.ipynb`: it explains no
 setup, fits no model and restates no method. The threshold method is in `risk-definition.ipynb`,
 the forecast method in `regression-models-claude.ipynb`, and the pick rule in spec 09. All three are
 linked, not repeated.
@@ -68,7 +68,7 @@ linked, not repeated.
 1. **Title cell** (at most 5 lines):
    - what the notebook does, and the files it reads and writes
    - links to `risk-definition.ipynb` (thresholds, rules, limits of the label),
-     `regression-visualization-best-models.ipynb` (picks) and `regression-models-claude.ipynb`
+     `visualization-01-regression-best-models.ipynb` (picks) and `regression-models-claude.ipynb`
      (forecast method, caveats)
    - one sentence: *the label is a national-balance proxy, not a validated intervention record*
 2. **Settings cell**, holding every setting:
@@ -396,7 +396,7 @@ Expected zoom weeks with the default rules:
 - Editing any existing file in `data/` (in particular `risk_labels_*.csv`), or any of these:
   - `risk-definition.ipynb`
   - `regression-models-claude.ipynb`
-  - `regression-visualization-best-models.ipynb`
+  - `visualization-01-regression-best-models.ipynb`
   - their specs
 - Recomputing, re-tuning or re-leveling thresholds, changing the percentile (it stays 1 %) or the day
   rules, or adding a basis.
