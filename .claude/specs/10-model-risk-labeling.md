@@ -1,8 +1,9 @@
 # 10 — Model Risk Labeling: Spec 02's Risk Flags on Our Best Forecasts
 
-- Status: **draft** 2026-09-30, not run. Branch: `feature/risk-classification-visualization`.
+- Status: run 2026-09-30. Branch: `feature/risk-classification-visualization`.
 - Deliverable: `notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb`
-  (no suffix: team choice, numbered after `visualization-01-regression-best-models.ipynb`). It writes
+  (no suffix: team choice, numbered after `visualization-01-regression-best-models.ipynb`; moved
+  from `03_risk_classification/classification-visualization-risk-labels.ipynb`). It writes
   two label files (Behaviour 16).
 - Depends on: the risk labels of [02-Risk-Definition.md](02-Risk-Definition.md)
   (`data/risk_classification/`), the exports of [06-regression-models.md](06-regression-models.md)
@@ -12,6 +13,22 @@
 - Built one section at a time, with a team review per section (`spec-run-section-loop` skill).
 - The parked [04.3](04.3-risk-label-link.md) stays parked (whole record, error on risk hours). This
   spec benchmarks SMARD's flags **on the test window only**.
+- The body is the spec as run; the notebook follows the changes below.
+
+## Changes during the run
+
+| Change | Why |
+|---|---|
+| High `TAIL_COLOR` is crimson-pink `#E0436B`, not gold; `OUTCOME_COLOR` keeps only quiet / not evaluable | Gold and black / grey were too similar; the red stays apart from both XGBoost reds |
+| Outcomes by texture: hit = fill, miss = outline, false alarm = hatch, all in `TAIL_COLOR` (plots A and C) | Readable without colour, and the same reading in both plots |
+| Holidays: dashed olive border `HOLIDAY_COLOR = #8A9A2B` at lower opacity | A colour no model or tail uses |
+| Plot A: quiet, not evaluable (cross-hatched, only if such days exist, with its count), the `3h` dot and holidays in one legend under the plot; first and last test date under the grid | Per-panel legends keep only the outcomes that differ |
+| Plot B: threshold as a dash-dot line with a direct label (high: above the line at Monday 01:00; low: outside the right edge), not in the legend | The label reads without the legend; low's P1 and 0 MWh lines sit too close for labels on the plot |
+| Plot B: full bar for a `3h` run, low faint bar for `any` only; white row and time grid in the strip; dotted 06 / 12 / 18 guides; legend split into series and risk label; title "Risk: High Extreme (two test weeks)", y label "Residual Load [MWh]" | Easier to tell sustained from brief flags |
+| Plot C: count labels at fixed spots (same height in every panel) as a big number on a light tile over the word, recall under hits, an "ordinary" label; false-alarm points drawn solid with a white ring; y label only on the left panel; `quiet_spot` dropped | For an audience; the hatch hid the false alarms |
+| `is_set()` (2.2) turns a flag into a plain mask; used by the checks, `outcome()` and the plots | Empty flags crashed `outcome()` and slipped through the structural checks |
+| Export frames built in 2.2; everything below reads only them | The checks and plots share one source |
+| Extra checks: hour flags in the reproduction check (8), "empty exactly where not evaluable" in the structural checks (9), every value compared in the round trip (17) | Guards the files the scores rely on |
 
 ## Goal
 
