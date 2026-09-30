@@ -4,6 +4,10 @@
   2026-09). This spec was updated afterwards to describe the refactored notebook: names, defaults
   and printed tables follow the notebook, and Behaviour numbers are unchanged, because other specs
   cite them. The decisions taken in review of the team's first draft are listed under Goal.
+- Updated again on 2026-09-30 for the additions made after the refactor: the Ridge model, the
+  random-forest hybrid, the spec 06.1 feature groups, the GPU switch, the new window and search
+  defaults and the `below_zero` bin. They are listed under *Additions after the refactor* and
+  described in the Behaviours below.
 - Branch: `feature/*` off `main`
 - Deliverable: `notebooks/05_modeling/regression-models-claude.ipynb`
   - (reference, `-claude` suffix until the team adopts it)
@@ -47,6 +51,8 @@ Concretely, this spec:
    - LightGBM, **direct** and as a **hybrid**, where a linear model captures the trend and the
      booster models its residuals
    - XGBoost in the same two architectures
+   - a Ridge regression, direct only (`linear_direct`)
+   - a random forest as the residual stage of a hybrid, hybrid only (`random_forest_hybrid`)
 3. Evaluates each model under two **split methods** on the same test year:
    - **static**: fit once, frozen for the whole test year
    - **rolling origin**: refit at a fixed interval on a sliding window
@@ -72,7 +78,7 @@ or not.
 | "Same data as SMARD": wind/solar at 18:00, load at 10:00, residual load at 18:00 | The issue time is 18:00 `DAY−1`, the earliest point at which all SMARD inputs for `DAY` exist. Actuals are usable up to issue time minus a **2 h publication lag**. | The residual-load value "published at 18:00" is SMARD's *forecast*, not the actual. Manual checks on smard.de showed actuals 15 min to 2 h behind real time, varying by day; the lag uses the upper end. (The first draft of this spec used 3 h.) |
 | Residual load driven by the grid-load and wind/solar forecasts | SMARD's `fc_grid_load` and `fc_gen_wind_solar` for `DAY` are model inputs. `fc_residual_load` is **not** a feature. | It equals `fc_grid_load − fc_gen_wind_solar` exactly (spec 04), so it adds nothing but collinearity. |
 | Holdout: keep the last `h` observations | Test = the **last 365 complete delivery days**, ending with the last fully observed day | One full seasonal cycle. It is the same window as spec 04's `trailing_365` headline, so the SMARD number is directly comparable. |
-| Rolling-origin CV with a 24-month window | The split method is an **experimental factor** evaluated on the same test year. Static and rolling both use a **24-month** training window. Hyperparameters are tuned on the validation year before the test. | Different test sets would make the split methods incomparable. With equal window lengths, the only difference between the split methods is refitting. |
+| Rolling-origin CV with a 24-month window | The split method is an **experimental factor** evaluated on the same test year. Static and rolling both use the same training window: **24 months** at first, **36 months** since 2026-09-29 (*Additions after the refactor*). Hyperparameters are tuned on the validation year before the test. | Different test sets would make the split methods incomparable. With equal window lengths, the only difference between the split methods is refitting. |
 | Differencing to handle stationarity | SARIMAX uses a fixed `d = 0`, checked (not decided) by one KPSS test; differencing, if ever needed, happens **inside ARIMA** through `d`. Tree models get no differenced target. | The SMARD forecasts and Fourier terms carry level and seasons, so the remaining error is expected to be stationary. Differencing outside the model complicates back-transformation and intervals. |
 | SARIMA with `auto_arima` | One **SARIMAX** variant in statsmodels: ARIMA errors plus Fourier terms for the seasons (Behaviour 15). No `pmdarima`. | SARIMA takes one seasonal period; hourly data has three. `m = 168` does not fit on a desktop. Fourier terms carry the seasons cheaply and stay resolution-independent. `pmdarima` is not installed and has had numpy-2 problems. |
 | AIC to compare parameters | **No AIC search**: SARIMAX's order is fixed at `(1, 0, 1)` in the registry. All models are compared out of sample (MAE / RMSE on identical hours). | Keeps SARIMAX simple and fast. AIC could only ever compare ARIMA orders within one model; a gradient booster has no AIC. |
@@ -81,6 +87,23 @@ or not.
 | Plot with a 95 % confidence interval | A **95 % prediction interval** built by one empirical method for all models, plus measured coverage | Boosters have no native interval. An interval whose coverage is not measured cannot be checked. |
 | MAE and RMSE scoreboard | Adds bias, skill vs. SMARD, monthly wins, tail and day-extreme errors, interval coverage and a seasonal-naive row | These follow from spec 04's approach. The seasonal-naive row pulls one baseline out of parked 04.1; the rest of 04.1 stays parked. |
 | Pipeline ready for 15-min data | Every window, lag and period is a **duration**. | Project convention (durations, not row counts). |
+
+### Additions after the refactor
+
+Made by the team in the notebook (2026-09-29/30) and decided on the **validation year** in scratch
+comparisons; the test year only confirmed.
+
+| Addition | What | Why |
+|---|---|---|
+| `linear_direct` | A Ridge regression, direct only, with calendar one-hot encoding, median imputation and scaling inside its pipeline (Behaviour 17) | A linear model extrapolates through every input and is not capped at the training range like a tree. In the default run it has the lowest `ordinary` MAE of all rows (2,230 MWh rolling). |
+| `random_forest_hybrid` | A random forest as the hybrid's residual stage, on by default; no direct forest (Behaviour 17) | Best test row (rolling MAE 2,333 MWh, +16.4 % vs SMARD), but behind the four boosters on the validation year (2,241 against 2,138–2,165 MWh); kept for its low tail (170 validation hours below 0 MWh: rolling MAE 2,669 MWh against SMARD's 3,841 MWh). A direct forest was tested and rejected: it is capped in the low tail even harder than the direct boosters (`low_extreme` skill −20.4 % rolling, −63.8 % static). |
+| spec 06.1 feature groups | `cyclical`, `renewables_history`, `rolling_stats`, **off by default** (Behaviour 18) | They lowered the validation MAE but raised the test MAE in every scratch run (`lgbm_direct` rolling 2,412 → 2,486 MWh with all three on). |
+| Training window 36 months, refit every 7 days | `WINDOWS["train"]`, `WINDOWS["refit_every"]` (Behaviour 3) | Chosen from 12 / 24 / 36 / 48 months × 1 / 7 / 30 days. Negative residual load becomes more common every year (170 h below 0 in the validation year, 563 h in the test year), so a refit has to pick up a new level quickly; 36 months beat 24 for every booster. A daily refit added little for about 7× the fits. |
+| Tuning folds every 30 days | `WINDOWS["tune_every"]`, run `validation_search` (Behaviour 11) | Decoupled from the 7-day refit: 7-day folds (53 instead of 13) selected equally good configurations (validation MAE within ±10 MWh) but took 46 instead of 13 min. |
+| Wider grids, `n_iter = 30` | LightGBM with `linear_tree` / `linear_lambda` and a fixed `subsample_freq = 1`; XGBoost with the loss as a grid value (Behaviour 11) | Better validation MAE. Without `subsample_freq = 1`, LightGBM ignores `subsample`. |
+| `USE_GPU` | XGBoost on an NVIDIA GPU (`device = "cuda"`) when `gpu_found()` detects one, else on the CPU; LightGBM always on the CPU | Faster XGBoost fits. GPU and CPU build slightly different trees, so scoreboards from different machines do not match exactly; `USE_GPU = False` reproduces a CPU run. |
+| `below_zero` bin | Actual `< 0 MWh` in Scoreboard B, next to the quantile bins (Behaviour 24) | A fixed threshold, the `zero` basis of `risk-definition.ipynb`: it measures the same physical situation (renewable oversupply) in every year, unlike P1. |
+| Publication times, 2 h lag kept | §2 lists SMARD's publication rules (Forecast setting) | A 1 h lag, as SMARD's rule allows, was worse on the validation year (rolling MAE +13 MWh on average over the five registry models then, +65 MWh on hours below 0), and the newest rows may still be SMARD estimates at a 17:00 cutoff. |
 
 ### Forecast setting
 
@@ -91,7 +114,7 @@ For every delivery day `DAY` in the evaluation windows:
 | Issue time | 18:00 local on `DAY−1`. Issue time and availability cutoff are **per-day timestamps**, the `issue_time` and `cutoff` columns of `FORECAST_SETTING` (Behaviour 5), not constants; `DATA_INFO` holds their configured clock time and lag. |
 | Availability cutoff | `cutoff = issue_time − actuals_lag`, with `actuals_lag = 2 h`: 16:00 on `DAY−1`. Every use of "the cutoff" or "availability cutoff" in this spec means this per-day timestamp. |
 | Actuals available at the issue time | An observation stamped `t` (interval start) is usable if its interval ends at or before the cutoff: `t + resolution ≤ cutoff` (`available(stamps, cutoff)`). Hourly: up to the hour stamped 15:00 on `DAY−1`. |
-| SMARD forecasts for `DAY` | Available: both components are published by 18:00 on `DAY−1`. |
+| SMARD forecasts for `DAY` | Available: `fc_gen_wind_solar` is published by 18:00 on `DAY−1` (it sets the issue time), `fc_grid_load` by 10:00 on `DAY−1` and updated whenever it changes by at least 10 %. The notebook's §2 lists SMARD's publication times, source ENTSO-E. |
 | SMARD forecasts for the rest of `DAY−1` | Available: published on `DAY−2`. |
 | Target hours | Every local hour of `DAY`. That is 24 hours, or 23 on the spring DST day; the autumn fold is collapsed by SMARD. |
 | Training rows | Delivery days whose target hours are all available at the fit's issue time, i.e. up to `DAY−2` for a fit issued on `DAY−1`. Every training row is built **as it would have been at its own issue time**. |
@@ -132,11 +155,13 @@ apply.
   colour map.
 - The forecast setting and a truncation-based leakage test.
 - A validation year for tuning, a test year, and the static and rolling split methods.
-- Seasonal naive `DAY−7`, LightGBM and XGBoost, each direct and hybrid, built as scikit-learn
-  pipelines and tuned with `GridSearchCV` / `RandomizedSearchCV`; `sarimax_fourier` in the
-  registry, switched off by default.
+- Seasonal naive `DAY−7`, LightGBM and XGBoost, each direct and hybrid, a Ridge regression
+  (direct) and a random-forest hybrid, built as scikit-learn pipelines and tuned with
+  `GridSearchCV` / `RandomizedSearchCV`; `sarimax_fourier` in the registry, switched off by
+  default.
 - A stationarity check (one KPSS test) for `sarimax_fourier`.
-- A minimal, toggleable feature set for the boosters.
+- A minimal, toggleable feature set for the boosters, the linear model and the random forest,
+  plus the spec 06.1 groups, switched off by default.
 - A self-check cell at the end of every section, plus the closing self-check.
 - Empirical 95 % prediction intervals and their coverage.
 - The scoreboard (accuracy, extremes, intervals), the static vs. rolling comparison, and one
@@ -159,8 +184,8 @@ apply.
 - MLflow logging and any change to `modeling/`.
 - Significance tests such as Diebold–Mariano. The monthly win count (Behaviour 23) is the
   robustness view in this spec.
-- A rich feature set (rolling statistics, ramps, interactions); that is for the team's
-  feature-engineering work.
+- A rich feature set (ramps, interactions, anything beyond the spec 06.1 groups); that is for the
+  team's feature-engineering work.
 - Quarter-hour data. The pipeline is ready for it (Behaviour 30), but this spec runs on the
   hourly `data/smard.csv`.
 - reBAP / cost calculation.
@@ -177,7 +202,7 @@ section 5 fits them and runs the leakage test.
 | 1 | Setup and configuration (1.1 shared setup, 1.2 resolution and durations, 1.3 configuration, 1.4 SMARD's hourly errors, 1.5 self-check) | 1–4 |
 | 2 | Forecast setting (2.1 setting, 2.2 feature availability, 2.3 capacity rule, 2.4 unforecastable days, 2.5 self-check) | 5–7, 9 |
 | 3 | Windows and split methods (3.1 windows, 3.2 fit schedule, 3.3 split engine and tuning, 3.4 self-check) | 10–14 |
-| 4 | Models (4.1 features, 4.2 seasonal naive, 4.3 `sarimax_fourier`, 4.4 KPSS, 4.5 boosters, 4.6 self-check) | 15–19 |
+| 4 | Models (4.1 features and the spec 06.1 feature check, 4.2 seasonal naive, 4.3 `sarimax_fourier`, 4.4 KPSS, 4.5 boosters, linear model and random forest, 4.6 self-check) | 15–19 |
 | 5 | Fitting and leakage test (5.1 fit, 5.2 selected configurations, 5.3 runtime and failures, 5.4 leakage test, 5.5 self-check) | 8, 11, 21, 32 |
 | 6 | Prediction intervals (6.1 self-check) | 20 |
 | 7 | Evaluation and scoreboard (7.1 common hours, 7.2–7.4 scoreboards A–C, 7.5 static vs. rolling, 7.6 plot, 7.7 self-check) | 21–27 |
@@ -205,19 +230,26 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
      is issued at 18:00 on `DAY−1`), `actuals_lag = 2 h`, and `capacity_published_after = 0`, the
      capacity publication rule "year `Y` is published on 1 January of `Y`, 00:00" (Behaviour 7).
    - `WINDOWS`: `test = 365 days`, `validation = 365 days`,
-     `train = 24 months` (calendar months, i.e. `DateOffset(months=24)`, not 730 days),
-     `refit_every = 30 days`.
+     `train = 36 months` (calendar months, i.e. `DateOffset(months=36)`, not 1095 days),
+     `refit_every = 7 days` (rolling method) and `tune_every = 30 days` (spacing of the tuning
+     folds, Behaviour 11).
    - `TRAIN_TEST_SPLIT_METHOD = {"static": True, "rolling": True}`: the split methods, each with
      an on/off switch. With both on (the default) the scoreboard shows them side by side.
-   - `SEED = 42`, the seed of every booster and every random draw, and the booster parameters the
-     registry references: `LGBM_PARAMS` / `XGB_PARAMS` (fixed) and `LGBM_GRID` / `XGB_GRID`
-     (tuned, Behaviour 11).
+   - `SEED = 42`, the seed of every booster and every random draw, and the parameters the
+     registry references (Behaviour 11): `LGBM_PARAMS` / `XGB_PARAMS` / `LINEAR_PARAMS` /
+     `RF_PARAMS` (fixed) and `LGBM_GRID` / `XGB_GRID` / `LINEAR_GRID` / `RF_GRID` (tuned).
+     `LGBM_PARAMS` fixes `subsample_freq = 1`, `RF_PARAMS` `n_jobs = -1`.
+   - `USE_GPU = True`: XGBoost runs on an NVIDIA GPU (`XGB_PARAMS["device"] = "cuda"`) when
+     `gpu_found()` detects one, else on the CPU; the cell prints which. LightGBM's PyPI build has
+     no GPU support, so it always runs on the CPU. GPU and CPU runs build slightly different
+     XGBoost trees; `USE_GPU = False` reproduces a CPU run.
    - `MODELS`: one entry per model, keyed `sarimax_fourier`, `lgbm_direct`, `lgbm_hybrid`,
-     `xgb_direct`, `xgb_hybrid`. Each entry holds:
-     - `enabled` (`False` for `sarimax_fourier` by default, `True` for the four boosters)
-     - `family`: `sarimax`, `lightgbm` or `xgboost`; it decides how the model is fitted
-     - `architecture`: `direct` or `hybrid` for the boosters (Behaviour 17); `None` for
-       `sarimax_fourier`
+     `xgb_direct`, `xgb_hybrid`, `linear_direct`, `random_forest_hybrid`. Each entry holds:
+     - `enabled` (`False` for `sarimax_fourier` by default, `True` for the other six)
+     - `family`: `sarimax`, `lightgbm`, `xgboost`, `linear` or `random_forest`; it decides how
+       the model is fitted
+     - `architecture`: `direct` or `hybrid` (Behaviour 17); the linear model is direct only, the
+       random forest hybrid only; `None` for `sarimax_fourier`
      - `params`: fixed parameters
      - `grid`: a small tuning grid (Behaviour 11); empty for `sarimax_fourier`
      - `label`: display label
@@ -226,14 +258,16 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
      The keys are the values of the `model` column in both exports. The rows outside the registry
      sit in `FIXED`, with fixed labels and colours: `actual`, `smard` (scoreboard export only,
      drawn dashed) and `seasonal_naive`, which also holds the naive lag (`7 days`).
-   - `SEARCH`: how a booster's grid is searched on the validation walk-forward (Behaviour 11):
+   - `SEARCH`: how a model's grid is searched on the validation walk-forward (Behaviour 11):
      `method` (`"grid"`: every configuration; `"random"`: `n_iter` draws with `SEED`, the
-     default), `n_iter = 10` (capped at the grid size for a grid of lists), `n_jobs = -1` (folds in
+     default), `n_iter = 30` (capped at the grid size for a grid of lists), `n_jobs = -1` (folds in
      parallel) and `verbose = 2` (sklearn's progress output).
-   - `USE_FEATURE`: one switch per booster feature group (Behaviour 18), so the team can adjust the
-     set later without touching model code. `FEATURE_WINDOWS` holds the durations the groups use
-     (the same-hour lags and the recent-error window), and `FEATURE_GROUPS` the model-input columns
-     each group adds. Both dicts end with a commented `my_group` template line.
+   - `USE_FEATURE`: one switch per feature group of the boosters, the linear model and the random
+     forest (Behaviour 18), so the team can adjust the set later without touching model code.
+     `FEATURE_WINDOWS` holds the durations the groups use (the same-hour lags, the recent-error
+     window, the two rolling windows and the year period of the cyclical terms), and
+     `FEATURE_GROUPS` the model-input columns each group adds. Both dicts end with a commented
+     `my_group` template line.
    - `INTERVAL`: `level = 0.95`.
    - `PLOT_MODEL` and `PLOT_SPLIT_METHOD`: which model and split method the forecast plot shows.
      Defaults: `PLOT_MODEL = None`, which the plot cell resolves to the **registry model** with the
@@ -248,7 +282,8 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
    (a stale export from another snapshot).
 
    The §1.5 self-check asserts the loaded data's structure and the configuration's consistency
-   (registry keys and families, a hybrid sharing its direct variant's grid, grid values that are
+   (registry keys and families, the linear model direct only, a hybrid sharing its direct
+   variant's grid where the family has a direct variant, grid values that are
    non-empty lists or, under random search only, `scipy.stats` distributions, the `SEARCH` keys,
    `USE_FEATURE` and `FEATURE_GROUPS` naming the same groups).
 
@@ -260,7 +295,9 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
    training row goes through them.
 6. **Feature availability rules.** Actual-derived features may use only observations available
    at the row's issue time (Forecast setting). SMARD forecasts for the target hour are available
-   (published by 18:00 on `DAY−1`). Calendar features are always available. The §2.2 cell checks
+   (published by 18:00 on `DAY−1`). Calendar and cyclical features are always available. The
+   `renewables_history` columns use the first same-hour lag (`DAY−2`), and the `rolling_stats`
+   windows end at the cutoff by definition. The §2.2 cell checks
    every same-hour lag in `FEATURE_WINDOWS` against the rule for every row of the record, prints
    each lag's smallest margin to the cutoff, and stops the notebook if a lag reaches past it (e.g.
    `DAY−1`, whose afternoon and evening come after 16:00).
@@ -273,7 +310,7 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
      publication time and not a fixed year offset.
    - Rows with no published value yet (only the record's first day, issued before the first
      publication) have an empty capacity feature. That day is unforecastable anyway
-     (Behaviour 9), and the default 24-month windows never reach it.
+     (Behaviour 9), and the default 36-month windows never reach it.
 8. **Leakage test by truncation** (§5.4). For a fixed-seed sample of delivery days drawn from the
    training, validation and test windows (`LEAKAGE_SAMPLE_DAYS = 20`, spread evenly over the three
    windows and drawn with `SEED`), plus the two days where leakage is easiest to get wrong (the
@@ -316,41 +353,56 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     365 delivery days immediately before the test window. The table also counts each window's
     unforecastable days and days without a complete actual.
 
-    **Training rows of a fit** (`training_days(fit_day)`): the delivery days inside the 24-month
-    window ending at the fit's cutoff whose rows are all observed by that cutoff, and that are
-    trainable (forecastable, a full clock span, a complete actual). The four runs and their fit
-    days sit in `RUNS`: `validation_rolling` (tuning; calibrates the rolling band),
-    `validation_static` (calibrates the static band), `test_static` and `test_rolling`. The
-    notebook stops if a first fit's training window starts before the record.
+    **Training rows of a fit** (`training_days(fit_day)`): the delivery days inside the
+    `WINDOWS["train"]` window (36 months) ending at the fit's cutoff whose rows are all observed by
+    that cutoff, and that are trainable (forecastable, a full clock span, a complete actual). The
+    five runs and their fit days sit in `RUNS`: `validation_search` (the search folds, one fit
+    every `tune_every`), `validation_rolling` (the selected configuration's walk-forward with the
+    test year's `refit_every`; calibrates the rolling band), `validation_static` (calibrates the
+    static band), `test_static` and `test_rolling`. The notebook stops if a first fit's training
+    window starts before the record.
 11. **Tuning**: a **rolling-method walk-forward over the validation year**, the same procedure as
     the rolling method (Behaviour 13) applied to the validation year: the first fit is issued for
-    the first validation day on the 24-month window ending at its cutoff, then a refit every
-    `refit_every`.
-    - **Boosters**: `search` runs `SEARCH` over the walk-forward, with sklearn's `GridSearchCV`
-      (every configuration) or `RandomizedSearchCV` (`n_iter` draws with `SEED`, the default).
-      `walk_forward_folds` turns the fit schedule into the `cv=` folds: one fold per validation
-      fit, its training rows and its forecast hours with an actual, as positions in
-      `FEATURE_TABLE`. The search runs with `refit=False` and `error_score=np.nan`.
+    the first validation day on the training window ending at its cutoff, then a refit every
+    `tune_every` (30 days: 13 folds), independent of the 7-day `refit_every`.
+    - **Boosters, the linear model and the random forest**: `search` runs `SEARCH` over the
+      folds of `validation_search`, with sklearn's `GridSearchCV` (every configuration) or
+      `RandomizedSearchCV` (`n_iter` draws with `SEED`, the default). `walk_forward_folds` turns
+      the fit schedule into the `cv=` folds: one fold per search fit, its training rows and its
+      forecast hours with an actual, as positions in `FEATURE_TABLE`. The search runs with
+      `refit=False` and `error_score=np.nan`.
     - The selection criterion is residual-load **MAE** on validation hours, **hour-weighted** over
       the folds, i.e. pooled over every validation hour; sklearn's plain fold mean would weigh the
       short last fold like a full one. A configuration with a failed fold gets no MAE.
-    - The search returns no forecasts, so the winner runs once more through the walk-forward
-      (`run_split`). Its validation residuals calibrate the rolling band (Behaviour 20).
+    - The search returns no forecasts, so the winner runs once more through `run_split` on
+      `validation_rolling`, with the test year's `refit_every`. Its validation residuals calibrate
+      the rolling band (Behaviour 20).
     - **`sarimax_fourier`** has no grid and no search: `tune_sarimax` runs its fixed parameters
-      (Behaviour 15) once through the walk-forward, which produces the residuals for its rolling
-      band. **Seasonal naive** needs no run: its validation-year forecast is computed directly.
-    - Grids stay small, four configurations per booster by default, all with
-      `learning_rate = 0.05`:
-      - LightGBM: `num_leaves ∈ {31, 63}` × `n_estimators ∈ {300, 800}`
-      - XGBoost: `max_depth ∈ {4, 6}` × `n_estimators ∈ {300, 800}`
-      - the hybrid variant of a booster uses the same grid as its direct variant (asserted in
-        §1.5)
+      (Behaviour 15) once through `validation_rolling`, which produces the residuals for its
+      rolling band. **Seasonal naive** needs no run: its validation-year forecast is computed
+      directly.
+    - Default grids, searched with 30 random draws each:
+      - LightGBM (17,496 configurations): `learning_rate ∈ {0.02, 0.05, 0.1}`, `n_estimators ∈
+        {300, 600, 1000, 1500}`, `num_leaves ∈ {7, 15, 31}`, `min_child_samples ∈ {20, 50, 100}`,
+        `subsample ∈ {0.7, 0.85, 1.0}`, `colsample_bytree ∈ {0.5, 0.7, 1.0}`, `reg_lambda ∈
+        {0, 1, 10}`, `linear_tree ∈ {False, True}` (a linear model in each leaf, which can
+        extrapolate) and `linear_lambda ∈ {1, 10, 100}`
+      - XGBoost (5,832 configurations): `learning_rate ∈ {0.03, 0.05, 0.1}`, `n_estimators ∈
+        {600, 1000, 1500}`, `max_depth ∈ {2, 3, 4, 6}`, `min_child_weight ∈ {1, 5, 20}`,
+        `subsample ∈ {0.7, 0.85, 1.0}`, `colsample_bytree ∈ {0.5, 0.7, 1.0}`, `reg_lambda ∈
+        {5, 20, 50}` and `objective ∈ {reg:squarederror, reg:absoluteerror}`
+      - Ridge: `alpha ∈ {0.01, 0.1, 1, 10}` (4 configurations, searched in full)
+      - random forest (288 configurations): `n_estimators ∈ {300, 600}`, `max_depth ∈ {None,
+        12, 20}`, `min_samples_leaf ∈ {1, 5, 20, 50}`, `max_features ∈ {0.33, 0.5, 0.7, 1.0}`
+        and `max_samples ∈ {0.5, 0.7, None}`; the `absolute_error` split criterion is left out,
+        it is far too slow in sklearn's forest
+      - the hybrid variant of a family uses the same grid as its direct variant, where one exists
+        (asserted in §1.5)
       - under random search a grid value may also be a `scipy.stats` distribution, e.g.
-        `stats.loguniform(0.01, 0.2)`; with the default `n_iter = 10`, the default four-point grids
-        are searched in full
+        `stats.loguniform(0.01, 0.2)`
     - §5.2 prints each model's validation MAE and search seconds for the selected configuration,
       and the frozen parameters.
-    - **Everything selected is frozen**: booster hyperparameters are chosen once on the validation
+    - **Everything selected is frozen**: hyperparameters are chosen once on the validation
       year, printed, and reused unchanged by both split methods on the test year. Refits
       re-estimate coefficients or re-train on the new window; they never re-run the search.
       This keeps static vs. rolling a clean "refit or not" comparison.
@@ -365,24 +417,24 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     forecasts every target hour of one delivery day. `fit_schedule(run)` assigns each forecastable
     day of a run to the latest fit at or before it; `run_split` calls the fit per scheduled fit,
     forecasts its days, applies the failure rules (Behaviour 21) and logs one row per fit.
-12. **Static method**: one fit per model, issued for the first test day, on the 24-month window
+12. **Static method**: one fit per model, issued for the first test day, on the training window
     ending at that fit's availability cutoff. The frozen model forecasts every test day; its
     inputs (SMARD forecasts, lags) update daily, its parameters do not. For SARIMAX, the daily
     update comes from the dynamic prediction starting at each day's cutoff (Behaviour 15).
 13. **Rolling method**: the first fit is issued for the first test day, so it is **identical to
-    the static fit**. After that, a refit every `refit_every` on the sliding 24-month window ending
-    at that refit's availability cutoff.
+    the static fit**. After that, a refit every `refit_every` (7 days) on the sliding training
+    window ending at that refit's availability cutoff.
     - The two split methods therefore produce the same forecasts for the first `refit_every` of
       the test year. The notebook says so, since that stretch cannot differ between them.
     - Between refits, the latest model forecasts each day with that day's inputs. For SARIMAX,
-      each refit's model is applied once to its training window plus its 30-day stretch and
+      each refit's model is applied once to its training window plus its `refit_every` stretch and
       predicts each day dynamically, as in the static method.
 14. Both split methods produce forecasts for **identical test hours**, and the scoreboard shows
     them side by side.
 
 ### Models
 
-15. **`sarimax_fourier`**: a regression with ARIMA errors on the 24-month window, with everything
+15. **`sarimax_fourier`**: a regression with ARIMA errors on the training window, with everything
     fixed in its registry entry (the team can edit the values by hand). Switched off by default
     (Behaviour 3); it runs when switched on.
     - **Exogenous inputs** (`sarimax_exog`):
@@ -421,11 +473,15 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     team can change `d` in the registry. A short markdown note states three points:
     - Differencing, if ever needed, happens inside ARIMA through `d`.
     - Tree models need no stationarity but **cannot extrapolate** beyond the target range they
-      were trained on.
+      were trained on. LightGBM's `linear_tree` (a grid value) fits a linear model in each leaf
+      and can extrapolate partly.
     - Box-Cox or log transforms are ruled out because residual load is negative in some hours.
-17. **Boosters**: LightGBM and XGBoost regressors with the fixed seed `SEED`, each in two
-    architectures, built as scikit-learn pipelines by `build_pipeline(model_key, config)` and
-    fitted by `fit_booster`, which forecasts all of a fit's days at once.
+17. **Boosters, the linear model and the random forest**: LightGBM and XGBoost regressors with
+    the fixed seed `SEED`, each in two architectures, a Ridge regression (direct only) and a
+    random forest (hybrid only), built as scikit-learn pipelines by
+    `build_pipeline(model_key, config)` and fitted by `fit_booster`, which forecasts all of a
+    fit's days at once. `BOOSTER` maps each family to its estimator; the names (`BOOSTER`,
+    `fit_booster`, the pipeline step `booster`) are kept for the linear model and the forest too.
     - **Direct** (`select → booster`): the booster predicts `residual_load` from the enabled
       feature groups (Behaviour 18). `select` is a pass-through `ColumnTransformer` that keeps the
       enabled `USE_FEATURE` columns of `FEATURE_TABLE`, in order.
@@ -439,7 +495,29 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
       row before `select`, so the `USE_FEATURE` switches affect only the direct booster and
       stage 2; stage 1 always uses the two SMARD forecasts and the trend, even if the
       `smard_forecast_*` groups are switched off.
-    - A grid parameter reaches the booster as `booster__<name>` (direct) or
+    - **Linear** (`select → prepare → Ridge`, `linear_direct`): the same enabled feature groups as
+      the direct boosters. `prepare` one-hot encodes `hour`, `dow` and `month`
+      (`CALENDAR_CATEGORIES`), fills empty values with the median and scales the other columns.
+      It is fitted inside the pipeline, so the medians and scales come from each training window
+      only; learned on the whole `FEATURE_TABLE` they would leak the test year. Families that need
+      this step are listed in `PREPROCESS` (`{"linear"}`). Without the imputation a rolling refit
+      fails on the spring-DST lag gaps. The §1.5 self-check forbids a linear hybrid; the §4.6
+      self-check runs `select → prepare` on a real training window and asserts the calendar
+      one-hot columns, no empty value left and the expected width.
+    - **Random forest** (`random_forest_hybrid`): sklearn's `RandomForestRegressor` as the residual
+      stage of a hybrid (`select → booster`). It handles empty values itself, so it needs no
+      `prepare` step. `SerialPredictForest` fits it on every core (`n_jobs = -1`) but predicts on
+      one: in parallel the tree predictions are summed in a varying order and differ by about
+      1e-11 MWh between two calls, which the exact comparison of static and rolling in the §5.5
+      self-check would catch. The forest runs inside the parallel search folds without slowing
+      them down.
+    - **No direct random forest.** It was tested with the same grid and search and rejected: a
+      forest forecasts an average of training targets, so it is capped in the low tail even harder
+      than the direct boosters (test `low_extreme` skill −20.4 % rolling and −63.8 % static by
+      actual; the static run never forecast an hour at or below P1), and it added nothing on
+      overall MAE (validation 2,254 MWh against 2,138–2,165 MWh for the boosters). The notebook's
+      §4.5 states this with the numbers.
+    - A grid parameter reaches the estimator as `booster__<name>` (direct) or
       `residual__booster__<name>` (hybrid), recorded in `PARAM_PREFIX`.
     - **No early stopping.** `n_estimators` is a value in the tuning grid. Early stopping would
       need a third time-ordered split inside each training window, which this spec does not
@@ -448,10 +526,12 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
       extrapolate the level through stage 1, while the direct booster is capped at its training
       range. This matters in the low tail, where the test year may reach more negative values
       than the training window. Scoreboard B shows it as a positive bias in `low_extreme` and as
-      few forecast hours in that bin (Behaviour 24).
-18. **Minimal feature set** for the boosters, as toggleable groups in `USE_FEATURE`, with their
-    columns in `FEATURE_GROUPS`. The groups are marked **provisional**: the team's
-    feature-engineering work may replace them.
+      few forecast hours in that bin (Behaviour 24). With `linear_tree = True` the direct LightGBM
+      is only partly capped; the linear model is not capped either, it extrapolates through every
+      input.
+18. **Minimal feature set** for the boosters, the linear model and the random forest, as
+    toggleable groups in `USE_FEATURE`, with their columns in `FEATURE_GROUPS`. The groups are
+    marked **provisional**: the team's feature-engineering work may replace them.
 
     | Group | Columns | Available because |
     |---|---|---|
@@ -461,9 +541,20 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     | lags | `rl_lag_48h`, `rl_lag_168h`: `residual_load` at the same local hour on `DAY−2` and on `DAY−7`; `rl_last_available`: the last available `residual_load` at the cutoff | before the cutoff |
     | recent_smard_error | `err_grid_load_recent`, `err_renewables_recent`: mean `err_grid_load` and mean `err_renewables` over the 24 h ending at the cutoff, read from `smard_forecast_errors_hourly.csv` | before the cutoff (same 2 h actuals lag); tests the reference notebook's observation that SMARD's error comes in episodes |
     | capacity | `cap_total` = `cap_wind_off + cap_wind_on + cap_solar` under the publication rule (Behaviour 7) | published 1 January of its own year |
+    | cyclical (off) | `hour_sin`, `hour_cos`, `dow_sin`, `dow_cos`, `doy_sin`, `doy_cos`: sine and cosine of the local time of day, the weekday and the day of year (over `FEATURE_WINDOWS["year_period"]` = 365.25 days); `season_code` (winter 0 .. autumn 3) | always known |
+    | renewables_history (off) | `capacity_factor_lag_48h`: wind + solar capacity factor (`renewables / cap_total` at that hour); `err_renewables_lag_48h`: SMARD's wind + solar error; both at the same local hour on `DAY−2` (the first same-hour lag) | before the cutoff; the capacity at the `DAY−2` hour is published by then |
+    | rolling_stats (off) | `rl_roll_mean_72h`, `rl_roll_std_168h`: mean of `residual_load` over the 72 h and standard deviation over the 168 h ending at the cutoff | before the cutoff |
 
-    All groups are on by default: 13 columns. The lag column names derive from the durations in
-    `FEATURE_WINDOWS` (e.g. 2 days → `rl_lag_48h`).
+    The first six groups are on by default: 13 columns. The last three are spec 06.1's
+    cutoff-safe versions of spec 05's features ([06.1-spec05-features.md](06.1-spec05-features.md)),
+    **off by default** (*Additions after the refactor*); their names differ from
+    `regression-models-magc.ipynb` (`capacity_factor_lag_48h` is `vre_cf_lag_48h` there, and
+    `renewables_history` + `rolling_stats` are its single group `fe_history`). `is_weekend` and
+    `holiday` belong to `calendar` only. The lag, history and rolling column names derive from the
+    durations in `FEATURE_WINDOWS` (e.g. 2 days → `rl_lag_48h`). A check cell after §4.1 asserts
+    the value ranges of the spec 06.1 groups (sine / cosine in [−1, 1], valid season codes,
+    capacity factor in [0, 1]) and recomputes their columns from spec 06.1's definitions on the
+    test hours.
 
     - **Built before the pipeline, not in it.** `build_features(days, frame, errors)` builds
       **every** group, whatever `USE_FEATURE` says, into `FEATURE_TABLE`: one row per target
@@ -473,7 +564,13 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
       arguments, so the leakage test (Behaviour 8) can rebuild rows from cut data.
     - Lags are durations, looked up **by timestamp** (`hour − lag`), never by row position: the
       record skips the spring-DST hour. A lag whose source hour does not exist, such as local 02:00
-      on a spring DST day, is `NaN`; boosters handle missing values natively. It is never filled.
+      on a spring DST day, is `NaN` in `FEATURE_TABLE`; the boosters and the random forest handle
+      missing values natively, the linear model fills them inside its pipeline (Behaviour 17).
+      No row is dropped.
+    - The rolling windows need every hour of the window: a window that contains a spring-DST
+      switch is one hour short, so `rl_roll_mean_72h` stays empty for 3 days and
+      `rl_roll_std_168h` for 7 days after each switch. They are handled like the lags.
+      `recent_smard_error` accepts a partial window.
     - **Adding a feature group**: a switch in `USE_FEATURE` and its columns in `FEATURE_GROUPS`
       (§1.3), the columns at the end of `build_features` in the same order (§4.1; the §4.6
       self-check compares the order), and, for a raw measured column new to the record, an entry
@@ -569,6 +666,10 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
       and bias per bin, both **binned by actual** and **binned by the row's own forecast**. The
       forecast-binned table also shows each row's hours per bin: a direct booster capped at its
       training floor puts few hours into `low_extreme` (tree extrapolation, Behaviour 17).
+    - **`below_zero`** (actual `< 0 MWh`, `ZERO`) is reported next to the quantile bins, in both
+      views (`REPORTED_BINS`, `bin_masks`). It is a fixed threshold, the `zero` basis of
+      `risk-definition.ipynb`: unlike P1 it measures the same physical situation (renewable
+      oversupply) in every year. It overlaps `low_extreme`.
     - **Skill vs. SMARD** is reported where a row and SMARD are scored on the same hours or days:
       per bin binned by actual, and for the day maximum and minimum. Binned by forecast, every row
       fills a bin with its own hours, so a skill there would compare different hours; it has none.
@@ -577,9 +678,11 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     - **Day maximum and day minimum** of residual load, computed from the **common hours** only.
       A day counts if its common hours cover at least `DAY_COMPLETENESS` (23/24) of its expected
       hours. Report value-error MAE, bias and skill, with the day count in the table title.
-    - Export metric names: `{MAE,bias}_{low_extreme,ordinary,high_extreme}_by_{actual,forecast}`,
-      `skill_pct_{low_extreme,ordinary,high_extreme}_by_actual` and
-      `{MAE,bias,skill_pct}_day_{max,min}`. SMARD's rows have no skill.
+    - Export metric names:
+      `{MAE,bias}_{low_extreme,below_zero,ordinary,high_extreme}_by_{actual,forecast}`,
+      `skill_pct_{low_extreme,below_zero,ordinary,high_extreme}_by_actual` and
+      `{MAE,bias,skill_pct}_day_{max,min}`. SMARD's rows have no skill. Exports written before
+      2026-09-30 have no `below_zero` metrics.
 25. **Scoreboard C — intervals** (§7.4): coverage (the share of common hours whose actual lies
     inside the band) against the nominal 95 %, `coverage − nominal` in percentage points
     (negative = band too narrow), and mean band width in `MWh`, per model × split method.
@@ -647,16 +750,20 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
       is an improvement on SMARD, not an independent forecast; and without a SMARD forecast our
       model cannot run
     - the **archive caveats**:
-      - `fc_grid_load` may be a revised value rather than the original 10:00 value
-      - the actuals are final values rather than first publications
+      - `fc_grid_load` may be a revised value rather than the original 10:00 value (SMARD updates
+        it whenever it changes by at least 10 %)
+      - the actuals are final values rather than first publications; SMARD partly estimates
+        generation when data are incomplete, which also affects the newest feature inputs
+        (`rl_last_available`, `recent_smard_error`)
       - both affect SMARD and our model alike and cannot be corrected from `data/smard.csv`
     - that the result rests on **one test year**, and whether the monthly win count supports it
 32. **Runtime**: §5.1 prints each model's total tune-and-run time and the total over all enabled
     models (`FITTING_SECONDS`), and a warning if that exceeds one hour ("check search method /
-    grid / data resolution"). With only `lgbm_direct` enabled, fitting takes about half a minute.
-    With the default registry the whole notebook should run in about an hour or less on a
-    desktop. If it clearly exceeds that, raise it with the team rather than silently shrinking
-    windows or grids.
+    grid / data resolution"). With the default registry (six models, 30 draws over 13 folds)
+    fitting takes about 30 min on a 16-core CPU without GPU: `random_forest_hybrid` alone about
+    16 min, `lgbm_direct` about 4 min, `linear_direct` a few seconds. The notebook should run in
+    about an hour or less on a desktop. If it clearly exceeds that, raise it with the team rather
+    than silently shrinking windows or grids.
 33. A **closing self-check cell** (§9.1), in addition to the per-section self-checks (Notebook
     structure). It runs against the in-memory export frames. With `EXPORT_ENABLED` on, it also
     reads both files back with a bare `pd.read_csv` and repeats the export checks
@@ -685,10 +792,11 @@ Series used:
 | Column | Role |
 |---|---|
 | `residual_load` | target |
-| `fc_grid_load`, `fc_gen_wind_solar` | booster features and the hybrid's linear-stage inputs for `DAY`; SARIMAX's exogenous inputs as named in its `exog` entry (for `DAY` and the rest of `DAY−1`); both decide whether a day is forecastable |
+| `fc_grid_load`, `fc_gen_wind_solar` | features of the boosters, the linear model and the random forest, and the hybrid's linear-stage inputs for `DAY`; SARIMAX's exogenous inputs as named in its `exog` entry (for `DAY` and the rest of `DAY−1`); both decide whether a day is forecastable |
 | `fc_residual_load` | SMARD benchmark only, never a feature |
-| `err_grid_load`, `err_renewables` (from the SMARD errors file) | `recent_smard_error` feature, under the availability rule |
-| `cap_wind_off`, `cap_wind_on`, `cap_solar` | capacity feature; year `Y`'s value counts as published on 1 January of `Y` |
+| `err_grid_load`, `err_renewables` (from the SMARD errors file) | `recent_smard_error` feature; `err_renewables` also for `renewables_history`; under the availability rule |
+| `cap_wind_off`, `cap_wind_on`, `cap_solar` | capacity feature; year `Y`'s value counts as published on 1 January of `Y`; the `renewables_history` capacity factor uses the value at its `DAY−2` hour |
+| `renewables` (derived, `wind_on + wind_off + solar`) | the `renewables_history` capacity factor |
 
 Derived in this spec:
 
@@ -749,9 +857,16 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 - **Band without the forecast.** A strongly biased hour gives both band quantiles the same sign,
   so the band does not contain the forecast (Behaviour 20). This is expected.
 - **Tree extrapolation.** A direct booster cannot predict below the lowest target value in its
-  training window. The test year may carry deeper negative residual load than the 24 months
-  before it. Scoreboard B shows it through the forecast-binned hours in `low_extreme`
-  (Behaviour 24).
+  training window (with `linear_tree`, LightGBM only partly). The test year may carry deeper
+  negative residual load than the 36 months before it. Scoreboard B shows it through the
+  forecast-binned hours in `low_extreme` (Behaviour 24). A direct random forest is capped even
+  harder, which is why there is none (Behaviour 17).
+- **Parallel forest predictions.** `RandomForestRegressor.predict` with `n_jobs = -1` sums the
+  trees in threads, so two calls differ by about 1e-11 MWh. `SerialPredictForest` predicts on one
+  thread, so static and rolling stay exactly identical over their shared first fit (Behaviour 17).
+- **Empty inputs of the linear model.** Ridge cannot take `NaN`: `prepare` fills the DST lag gaps
+  and the rolling-window gaps with the training window's median inside the pipeline, never on
+  the whole `FEATURE_TABLE` (Behaviour 17).
 - **Regime shift in grid-load bias.** The reference notebook reports that SMARD's grid-load bias
   changes sign between years. A model tuned on the validation year can inherit a correction that
   no longer applies in the test year. The static vs. rolling comparison (Behaviour 26) is where
@@ -768,8 +883,9 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 - **Missing data files.** A fresh clone has no `data/smard.csv` and no
   `data/metrics/smard_forecast_errors_hourly.csv`. The setup fails with a message naming
   `notebooks/API-connection.ipynb` and `forecast-metrics-claude.ipynb` respectively.
-- **Runtime.** SARIMAX on 24 months dominates the runtime, which is why it is off by default. The
-  registry's `enabled` switches, small grids and `SEARCH` (random search, parallel folds) are the
+- **Runtime.** SARIMAX on the training window dominates the runtime, which is why it is off by
+  default; of the default models, `random_forest_hybrid` is the slowest (about 16 min). The
+  registry's `enabled` switches, the grids and `SEARCH` (random search, parallel folds) are the
   lever; the windows are not shrunk silently (Behaviour 32).
 
 ## Acceptance criteria
@@ -779,8 +895,8 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 - [ ] The notebook is `notebooks/05_modeling/regression-models-claude.ipynb` and runs top to
       bottom from a fresh kernel.
 - [ ] The shared setup is repeated from `team-EDA.ipynb` §1 and pointed at in one markdown cell.
-- [ ] `DATA_INFO`, `WINDOWS`, `TRAIN_TEST_SPLIT_METHOD`, `SEED`, the booster parameters and
-      grids, `MODELS`, `FIXED`, `SEARCH`, `USE_FEATURE`, `FEATURE_WINDOWS`, `FEATURE_GROUPS`,
+- [ ] `DATA_INFO`, `WINDOWS`, `TRAIN_TEST_SPLIT_METHOD`, `SEED`, the model parameters and
+      grids, `USE_GPU`, `MODELS`, `FIXED`, `SEARCH`, `USE_FEATURE`, `FEATURE_WINDOWS`, `FEATURE_GROUPS`,
       `INTERVAL`, `PLOT_MODEL`, `PLOT_SPLIT_METHOD` and `EXPORT_ENABLED` are configuration cells,
       printed once; no downstream cell hardcodes a value they hold.
 - [ ] Every row is built at its own issue time (18:00 on `DAY−1`, 2 h actuals lag by default), and
@@ -793,13 +909,14 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 
 - [ ] The test window is the last 365 complete delivery days, and the validation window is the
       365 delivery days before it; both are derived from the data.
-- [ ] The validation walk-forward runs for every enabled registry model; the boosters are tuned
-      over it with `GridSearchCV` / `RandomizedSearchCV` (`SEARCH`) by hour-weighted MAE, and the
-      booster grids match the defaults in Behaviour 11 unless the team changed them.
+- [ ] The validation walk-forward runs for every enabled registry model; every model except
+      SARIMAX is tuned over the `validation_search` folds (one every `tune_every`) with
+      `GridSearchCV` / `RandomizedSearchCV` (`SEARCH`) by hour-weighted MAE, and the grids match
+      the defaults in Behaviour 11 unless the team changed them.
 - [ ] Tuning uses only the validation year; the selected configuration per model is printed and
       frozen for both split methods, and refits never re-run the search.
-- [ ] The static and rolling methods forecast identical test hours, with 24-month windows in
-      both.
+- [ ] The static and rolling methods forecast identical test hours, with equal training windows
+      (36 months by default) in both.
 - [ ] `sarimax_fourier` is fitted with statsmodels on the local-time rows, with `order = (1, 0, 1)`
       and the Fourier orders fixed in the registry, and forecasts each day by dynamic prediction
       starting at the row stamped 16:00 on `DAY−1`, after one `apply` to its training window plus
@@ -807,10 +924,12 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
       `enabled: False` and runs when switched on.
 - [ ] One KPSS check is printed as a check, not a decision, with the short note on
       differencing.
-- [ ] LightGBM and XGBoost run direct and hybrid with a fixed seed, as sklearn pipelines built by
-      `build_pipeline`.
+- [ ] LightGBM and XGBoost run direct and hybrid with a fixed seed, Ridge direct (with its
+      `prepare` step) and the random forest as a hybrid (predicting on one thread), all as sklearn
+      pipelines built by `build_pipeline`.
 - [ ] The minimal feature set is implemented as toggleable groups (`USE_FEATURE`), built once into
-      `FEATURE_TABLE`, and marked provisional.
+      `FEATURE_TABLE`, and marked provisional; the three spec 06.1 groups are off by default and
+      pass their check cell after §4.1.
 - [ ] Seasonal naive `DAY−7` appears as the floor row.
 - [ ] Each split method's band is calibrated on its own validation run (static: one frozen fit
       over the validation year).
@@ -818,8 +937,8 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
       scoreboard and the intersection, a failed rolling refit empties the days until the next
       refit; failures and the common hours lost are printed, warnings are counted in `FIT_LOG`;
       all other rows are scored on the strict common-hours intersection.
-- [ ] Every registry entry has `family` and, for the boosters, `architecture`; the hybrid's
-      stage 1 inputs do not depend on the `USE_FEATURE` switches.
+- [ ] Every registry entry has `family` and, for every model except SARIMAX, `architecture`; the
+      hybrid's stage 1 inputs do not depend on the `USE_FEATURE` switches.
 
 ### Evaluation
 
@@ -827,7 +946,8 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
       cross-check passes.
 - [ ] Scoreboards A (accuracy, incl. months beating SMARD), B (extremes) and C (intervals) exist,
       with the hour or day count in each table's header line and in the export's `count`.
-- [ ] Tail bins (`low_extreme`, `ordinary`, `high_extreme`) use shared, printed test-window edges;
+- [ ] Tail bins (`low_extreme`, `ordinary`, `high_extreme`) use shared, printed test-window edges,
+      and `below_zero` the fixed 0 MWh threshold;
       both the binned-by-actual and the binned-by-forecast views are shown, with skill vs. SMARD
       only where the hours are the same (by actual, day max / min).
 - [ ] Every model's 95 % band comes from the same empirical method, and its coverage and width
