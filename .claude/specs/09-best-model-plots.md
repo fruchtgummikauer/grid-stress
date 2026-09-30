@@ -1,12 +1,25 @@
 # 09 — Best-Model Plots: the Top Picks per Category vs. SMARD
 
-- Status: draft, not yet run. Numbered 09 on purpose (team choice).
+- Status: run 2026-09-30. Numbered 09 on purpose (team choice).
 - Branch: `feature/selected-best-model-plots`
-- Deliverable: `notebooks/05_modeling/regression-best-models.ipynb` (no suffix: team choice). It
-  writes no files.
+- Deliverable: `notebooks/05_modeling/regression-visualization-best-models.ipynb` (renamed from
+  `regression-best-models.ipynb`). It writes no files.
 - Depends on: the exports of [06-regression-models.md](06-regression-models.md) (Behaviour 28), and
   `data/metrics/smard_forecast_errors_hourly.csv` from [04-forecast-metrics.md](04-forecast-metrics.md).
 - Built one section at a time, with a team review of each section (`spec-run-section-loop` skill).
+- The body is the spec as run; the notebook follows the changes below.
+
+## Changes during the run
+
+| Change | Why |
+|---|---|
+| `forecast share` replaces `reach`; the picks table adds SMARD's share | "Reach" needed an explanation first |
+| `bin_errors` draws range bars (middle 80 %, bias diamond) instead of boxes | Readable without box-plot vocabulary |
+| Flagging view: plain-words title, count labels on each quadrant's quietest spot | Easier to read for an audience |
+| Overall adds §4.3 (skill by hour of day) and §4.4 (last full week, `WEEK_START`) | Shows at which hours the picks gain or lose |
+| §9.1 monthly SMARD bias table (also reads `err_grid_load`); Why / To try bullets | Every explanation backed by a number |
+| Minor: settings cell first, every candidate listed, rows check in the self-check, months column in the picks table | Clarity |
+| Dropped: hour-of-day MAE per tail | Too few hours per point; §4.3 covers it |
 
 ## Goal
 
