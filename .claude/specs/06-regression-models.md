@@ -8,12 +8,16 @@
   random-forest hybrid, the spec 06.1 feature groups, the GPU switch, the new window and search
   defaults and the `below_zero` bin. They are listed under *Additions after the refactor* and
   described in the Behaviours below.
+- Updated once more on 2026-09-30 for saving and loading model results (Behaviour 34) and the
+  export toggle switched on by default (Behaviour 28).
 - Branch: `feature/*` off `main`
 - Deliverable: `notebooks/05_modeling/regression-models-claude.ipynb`
   - (reference, `-claude` suffix until the team adopts it)
   - plus two artifacts, `data/models/model_forecast_errors_hourly.csv` and
-    `data/models/model_scoreboard.csv`, written only when the export toggle is on. It is **off by
-    default**: the team experiments first and switches the export on later (Behaviour 28).
+    `data/models/model_scoreboard.csv`, written when the export toggle is on, which is the
+    default (Behaviour 28)
+  - plus one save folder per model, `data/models/<model_key>/`, written on request and committed
+    to git (Behaviour 34)
 - Depends on:
   - the shared foundation in `notebooks/01_eda/team-EDA.ipynb` §1 (as reused by
     `risk-definition.ipynb` and `forecast-metrics-claude.ipynb`)
@@ -104,6 +108,8 @@ comparisons; the test year only confirmed.
 | `USE_GPU` | XGBoost on an NVIDIA GPU (`device = "cuda"`) when `gpu_found()` detects one, else on the CPU; LightGBM always on the CPU | Faster XGBoost fits. GPU and CPU build slightly different trees, so scoreboards from different machines do not match exactly; `USE_GPU = False` reproduces a CPU run. |
 | `below_zero` bin | Actual `< 0 MWh` in Scoreboard B, next to the quantile bins (Behaviour 24) | A fixed threshold, the `zero` basis of `risk-definition.ipynb`: it measures the same physical situation (renewable oversupply) in every year, unlike P1. |
 | Publication times, 2 h lag kept | §2 lists SMARD's publication rules (Forecast setting) | A 1 h lag, as SMARD's rule allows, was worse on the validation year (rolling MAE +13 MWh on average over the five registry models then, +65 MWh on hours below 0), and the newest rows may still be SMARD estimates at a 17:00 cutoff. |
+| Saving and loading | `SAVE_MODELS` and a per-model `load_saved` switch; saves in `data/models/<model_key>/`, committed to git; `joblib` added as a dependency (Behaviour 34) | A full run takes about 30 min. A committed save lets every team member load the results in seconds, or refit a saved configuration on new data without the search. |
+| Export on by default | `EXPORT_ENABLED = True` (Behaviour 28) | Team decision: every default run writes the two exports; the toggle stays for runs that should not overwrite them. |
 
 ### Forecast setting
 
@@ -151,8 +157,8 @@ apply.
   `data/metrics/smard_forecast_errors_hourly.csv`.
 - A compact restatement of the shared setup.
 - Configuration cells (a model registry, windows, the data-availability rule, split methods,
-  features, intervals, plot selection, export toggle) that the team edits the way it edits a
-  colour map.
+  features, intervals, plot selection, export toggle, save and load switches) that the team edits
+  the way it edits a colour map.
 - The forecast setting and a truncation-based leakage test.
 - A validation year for tuning, a test year, and the static and rolling split methods.
 - Seasonal naive `DAY−7`, LightGBM and XGBoost, each direct and hybrid, a Ridge regression
@@ -166,8 +172,10 @@ apply.
 - Empirical 95 % prediction intervals and their coverage.
 - The scoreboard (accuracy, extremes, intervals), the static vs. rolling comparison, and one
   forecast plot with its band for a selectable model.
-- Two CSV exports behind a toggle that is off by default, one closing "Did we beat SMARD?"
+- Two CSV exports behind a toggle that is on by default, one closing "Did we beat SMARD?"
   section, and a self-check cell.
+- Saving each model's results and loading them, or only its selected configuration, in a later
+  run (Behaviour 34).
 
 ### OUT
 
@@ -190,7 +198,7 @@ apply.
   hourly `data/smard.csv`.
 - reBAP / cost calculation.
 - New dependencies. scikit-learn and scipy (for random-search distributions) are already
-  runtime dependencies.
+  runtime dependencies; `joblib` was added by the team for saving (Behaviour 34).
 
 ### Notebook structure
 
@@ -203,7 +211,7 @@ section 5 fits them and runs the leakage test.
 | 2 | Forecast setting (2.1 setting, 2.2 feature availability, 2.3 capacity rule, 2.4 unforecastable days, 2.5 self-check) | 5–7, 9 |
 | 3 | Windows and split methods (3.1 windows, 3.2 fit schedule, 3.3 split engine and tuning, 3.4 self-check) | 10–14 |
 | 4 | Models (4.1 features and the spec 06.1 feature check, 4.2 seasonal naive, 4.3 `sarimax_fourier`, 4.4 KPSS, 4.5 boosters, linear model and random forest, 4.6 self-check) | 15–19 |
-| 5 | Fitting and leakage test (5.1 fit, 5.2 selected configurations, 5.3 runtime and failures, 5.4 leakage test, 5.5 self-check) | 8, 11, 21, 32 |
+| 5 | Fitting and leakage test (5.1 fit or load, 5.2 selected configurations, 5.3 runtime and failures, 5.4 leakage test, 5.5 self-check) | 8, 11, 21, 32, 34 |
 | 6 | Prediction intervals (6.1 self-check) | 20 |
 | 7 | Evaluation and scoreboard (7.1 common hours, 7.2–7.4 scoreboards A–C, 7.5 static vs. rolling, 7.6 plot, 7.7 self-check) | 21–27 |
 | 8 | Export | 28–29 |
@@ -246,6 +254,7 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
    - `MODELS`: one entry per model, keyed `sarimax_fourier`, `lgbm_direct`, `lgbm_hybrid`,
      `xgb_direct`, `xgb_hybrid`, `linear_direct`, `random_forest_hybrid`. Each entry holds:
      - `enabled` (`False` for `sarimax_fourier` by default, `True` for the other six)
+     - `load_saved`: `False` (fit, the default for all), `"config"` or `"results"` (Behaviour 34)
      - `family`: `sarimax`, `lightgbm`, `xgboost`, `linear` or `random_forest`; it decides how
        the model is fitted
      - `architecture`: `direct` or `hybrid` (Behaviour 17); the linear model is direct only, the
@@ -274,7 +283,8 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
      lowest test MAE (never SMARD or seasonal naive), and `PLOT_SPLIT_METHOD = "rolling"`, which
      falls back to `static` when rolling is switched off. Setting a registry key, e.g.
      `"lgbm_hybrid"`, overrides the default.
-   - `EXPORT_ENABLED = False`: the export toggle (Behaviour 28).
+   - `EXPORT_ENABLED = True`: the export toggle (Behaviour 28).
+   - `SAVE_MODELS = False`: saves every fitted model (Behaviour 34).
 4. Load `data/metrics/smard_forecast_errors_hourly.csv` into its own frame, `smard_errors`, never
    merged into `time_series`. Fail with a clear message naming
    `notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb` in three cases: the file is
@@ -377,9 +387,9 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     - The search returns no forecasts, so the winner runs once more through `run_split` on
       `validation_rolling`, with the test year's `refit_every`. Its validation residuals calibrate
       the rolling band (Behaviour 20).
-    - **`sarimax_fourier`** has no grid and no search: `tune_sarimax` runs its fixed parameters
-      (Behaviour 15) once through `validation_rolling`, which produces the residuals for its
-      rolling band. **Seasonal naive** needs no run: its validation-year forecast is computed
+    - **`sarimax_fourier`** has no grid and no search: `tune_fixed(model_key, config)` runs its
+      fixed parameters (Behaviour 15) once through `validation_rolling`, which produces the
+      residuals for its rolling band. It does the same for a saved configuration (Behaviour 34). **Seasonal naive** needs no run: its validation-year forecast is computed
       directly.
     - Default grids, searched with 30 random draws each:
       - LightGBM (17,496 configurations): `learning_rate ∈ {0.02, 0.05, 0.1}`, `n_estimators ∈
@@ -409,8 +419,8 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     - After tuning, the test-year fits use training windows that **include the validation year**.
       Tuning only chose the configuration; the validation data is not held back from the final
       fits.
-    - `evaluate_model` is the entry point per model: tune once, freeze the winner, run every
-      enabled run with it.
+    - `evaluate_model(model_key, config=None)` is the entry point per model: tune once (or take a
+      saved `config`, no search), freeze the winner, run every enabled run with it.
 
     **Split engine** (§3.3). Each model family supplies one fit function, registered in
     `FAMILY_FIT`: `fit(model_key, config, train_days, forecast_days)` returns `predict(day)`, which
@@ -705,8 +715,8 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
 
 ### Export
 
-28. **Export toggle.** Both files are written only if `EXPORT_ENABLED` is `True`. The default is
-    `False`, because the team experiments with the models first.
+28. **Export toggle.** Both files are written only if `EXPORT_ENABLED` is `True`, the default
+    since 2026-09-30 (it was `False` while the team experimented with the models).
     - The notebook always builds the two export frames in memory, so the scoreboards and the
       self-check work with the toggle off.
     - With the toggle off, the export cell writes nothing. It prints that the export was skipped
@@ -778,6 +788,37 @@ Markdown cells link to other sections by anchors (`#sec-1-3` etc.).
     - `time_series` still carries exactly `SERIES + DERIVED`, with the row count and time span
       recorded at loading (`LOADED`)
 
+### Saving and loading
+
+34. **Model saves** (§5 markdown, a helper cell before §5.1, `LOAD_PLAN` in §5.1). A save is one
+    folder per model, `data/models/<model_key>/`:
+    - `config.json`, readable: the registry settings that change the forecasts
+      (`model_settings`), the selected configuration, the device, the library versions, the run
+      time, and a data snapshot of what it was tuned on (`tuned_on`) and run on (`run_on`): rows,
+      span and one hash per calendar month of `time_series[SERIES]` and of the SMARD errors file
+    - `results.joblib`: `RESULTS[model_key]` as fitted (forecasts, tuning table, fit logs),
+      compressed; fitted estimators are not saved
+
+    Per model, `load_saved` decides what §5.1 does:
+
+    | `load_saved` | §5.1 | Stops when the save differs in |
+    |---|---|---|
+    | `False` | fits; saves with `SAVE_MODELS = True` (replaces an old save) | – |
+    | `"config"` | refits every run with the saved configuration, no search (warns if the data differ); saves with `SAVE_MODELS = True` | a model setting, the search, the features or `DATA_INFO` |
+    | `"results"` | loads everything, no fit; never rewrites the save | any setting, incl. `WINDOWS` and the split methods, or either input file (the message lists the differing months) |
+
+    - `LOAD_PLAN` checks every enabled model's save before the first fit, so a mismatch stops at
+      once and lists the differences.
+    - A requested save that does not exist: the model is fitted and saved, with a warning, even
+      with `SAVE_MODELS` off.
+    - A save is written only once a model's runs are complete; nothing is saved if every
+      configuration failed.
+    - The CPU / GPU device is recorded, never compared. Other library versions only warn.
+    - §5.2's `tuning` column shows per model whether its configuration comes from this run, a
+      saved configuration or a loaded save.
+    - The saves are committed to git (the `data/models/*.csv` rule does not reach them).
+      `results.joblib` is a pickle: the §5 markdown says to load only saves from the team.
+
 ## Data
 
 Sources:
@@ -815,10 +856,11 @@ Exported artifacts:
 | `data/models/model_forecast_errors_hourly.csv` | test hour × model × split method | `sep=","`, `decimal="."`, UTF-8 |
 | `data/models/model_scoreboard.csv` | long: model × split method × table × metric | `sep=","`, `decimal="."`, UTF-8 |
 
-Both are written only with `EXPORT_ENABLED = True` (default `False`). `data/models/` is tracked
+Both are written only with `EXPORT_ENABLED = True` (the default). `data/models/` is tracked
 through an empty `.gitkeep`; its CSVs are ignored by the `data/models/*.csv` rule in
 `.gitignore`. The existing `data/*.csv` rule does not reach subfolders, which is why the separate
-rule exists, as for `data/metrics/` and `data/risk_classification/`.
+rule exists, as for `data/metrics/` and `data/risk_classification/`. The model saves in
+`data/models/<model_key>/` (Behaviour 34) match no rule and are committed.
 
 ## Edge cases
 
@@ -886,7 +928,11 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 - **Runtime.** SARIMAX on the training window dominates the runtime, which is why it is off by
   default; of the default models, `random_forest_hybrid` is the slowest (about 16 min). The
   registry's `enabled` switches, the grids and `SEARCH` (random search, parallel folds) are the
-  lever; the windows are not shrunk silently (Behaviour 32).
+  lever; the windows are not shrunk silently (Behaviour 32). A loaded save takes seconds
+  (Behaviour 34).
+- **Stale save after a re-fetch.** A re-fetch changes `data/smard.csv`, so a `"results"` load
+  stops and names the differing months. `"config"` still works: it refits the saved configuration
+  on the new data and only warns (Behaviour 34).
 
 ## Acceptance criteria
 
@@ -897,7 +943,7 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 - [ ] The shared setup is repeated from `team-EDA.ipynb` §1 and pointed at in one markdown cell.
 - [ ] `DATA_INFO`, `WINDOWS`, `TRAIN_TEST_SPLIT_METHOD`, `SEED`, the model parameters and
       grids, `USE_GPU`, `MODELS`, `FIXED`, `SEARCH`, `USE_FEATURE`, `FEATURE_WINDOWS`, `FEATURE_GROUPS`,
-      `INTERVAL`, `PLOT_MODEL`, `PLOT_SPLIT_METHOD` and `EXPORT_ENABLED` are configuration cells,
+      `INTERVAL`, `PLOT_MODEL`, `PLOT_SPLIT_METHOD`, `EXPORT_ENABLED` and `SAVE_MODELS` are configuration cells,
       printed once; no downstream cell hardcodes a value they hold.
 - [ ] Every row is built at its own issue time (18:00 on `DAY−1`, 2 h actuals lag by default), and
       the truncation leakage test passes.
@@ -962,9 +1008,12 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
 
 ### Export and conclusions
 
-- [ ] The export toggle `EXPORT_ENABLED` defaults to `False`. With it off, nothing is written and
+- [ ] The export toggle `EXPORT_ENABLED` defaults to `True`. With it off, nothing is written and
       the skip is printed. With it on, both files go to `data/models/` as plain comma/period CSV
       with the columns in Behaviours 28–29. The notebook does not create `data/models/`.
+- [ ] `SAVE_MODELS` defaults to `False` and every `load_saved` to `False`. Each save holds
+      `config.json` and `results.joblib`; `"results"` and `"config"` follow the table in
+      Behaviour 34, and every save is checked before the first fit.
 - [ ] The "Did we beat SMARD?" section is marked as written for the default configuration and
       states the best registry model's skill (or that none beats SMARD), its tail and interval results, whether refitting helped, the
       post-processing framing, the archive caveats and the one-test-year limitation. A tail claim
@@ -977,7 +1026,8 @@ rule exists, as for `data/metrics/` and `data/risk_classification/`.
       data.
 - [ ] Every window, lag and period is a duration, not a row count.
 - [ ] No Holt-Winters, no seasonal ARIMA, no MAPE, no risk flags, no MLflow run, no weather data.
-- [ ] No new dependency is added; if one appears necessary, it is raised rather than `uv add`-ed.
+- [ ] No new dependency is added beyond the team's `joblib` (Behaviour 34); if one appears
+      necessary, it is raised rather than `uv add`-ed.
 - [ ] `team-EDA.ipynb`, `risk-definition.ipynb`, `forecast-metrics-claude.ipynb` and all `01_eda/`
       notebooks are unchanged.
 
