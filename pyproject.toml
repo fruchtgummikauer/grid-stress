@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "streamlit>=1.64.0",
     "scipy>=1.17.1",
+    "joblib>=1.6.0",
 ]
 
 [dependency-groups]
