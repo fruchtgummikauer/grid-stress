@@ -5,6 +5,10 @@ warm/cool reading — grid load hot, residual load near-black, low risk cool, hi
 the exact hexes are an Okabe-Ito-derived, colourblind-safe substitution — see
 `.claude/skills/chart-style/SKILL.md` for the full palette table and the rules for using it.
 `team-EDA.ipynb` itself is a shared, team-edited file and is intentionally left unchanged.
+
+The model pages (Plotly) use the model, bin and risk colours of the two visualization notebooks
+in `notebooks/05_modeling/` instead, so a model keeps its notebook colour; see the section
+"Model pages (Plotly)" below and the chart-style skill.
 """
 
 import matplotlib.dates as mdates
@@ -111,3 +115,101 @@ def year_colors(years, cmap="viridis"):
     years = list(years)
     sampled = plt.get_cmap(cmap)(np.linspace(0.05, 0.95, len(years)))
     return dict(zip(years, sampled))
+
+# --- Model pages (Plotly) ---------------------------------------------------------------------
+# Label and colour per row, copied from `STYLE` in visualization-01-regression-best-models.ipynb
+# and visualization-02-classification-risk-labels.ipynb (themselves copied from MODELS / FIXED in
+# regression-models-claude.ipynb; `seasonal_naive` straight from FIXED), so a model has the same
+# colour in the notebooks and the app.
+MODEL_STYLE = {
+    "sarimax_fourier": {"label": "SARIMAX + Fourier", "color": "#D9A53A"},
+    "lgbm_direct": {"label": "LightGBM direct", "color": "#2C6EBA"},
+    "lgbm_hybrid": {"label": "LightGBM hybrid", "color": "#2F8F5B"},
+    "xgb_direct": {"label": "XGBoost direct", "color": "#E95D0F"},
+    "xgb_hybrid": {"label": "XGBoost hybrid", "color": "#B10F0F"},
+    "linear_direct": {"label": "Ridge direct", "color": "#7A4FA3"},
+    "random_forest_hybrid": {"label": "Random forest hybrid", "color": "#8C564B"},
+    "seasonal_naive": {"label": "Seasonal naive (DAY−7)", "color": "#9098A2"},
+    "actual": {"label": "Actual residual load", "color": "#1C1C1C"},
+    "smard": {"label": "SMARD day-ahead", "color": "#48505A", "dash": "dash"},
+}
+
+# Residual-load bins of the accuracy scoreboard (visualization-01 `TAIL_COLOR`): they mark bin
+# regions and edges only, never a model.
+BIN_COLOR = {
+    "low_extreme": "#17BECF",  # cyan
+    "below_zero": "#9EDAE5",  # light cyan
+    "ordinary": "#E3E8EF",  # light grey
+    "high_extreme": "#E6B800",  # gold
+}
+BIN_LABEL = {
+    "low_extreme": "Lowest 1 % of hours",
+    "below_zero": "Below zero",
+    "ordinary": "Ordinary hours (middle 50 %)",
+    "high_extreme": "Highest 1 % of hours",
+}
+
+# Risk-label thresholds, flagged hours and outcome cells per (direction, basis)
+# (visualization-02 `TAIL_COLOR`, `OUTCOME_COLOR`, `HOLIDAY_COLOR`), never a model's colour.
+RISK_COLOR = {
+    ("high", "rolling"): "#E0436B",  # crimson-pink, apart from both XGBoost reds
+    ("low", "rolling"): "#17BECF",  # cyan
+    ("low", "zero"): "#9EDAE5",  # light cyan
+}
+OUTCOME_COLOR = {"quiet": "#F2F4F7", "not evaluable": "#FFFFFF"}
+HOLIDAY_COLOR = "#8A9A2B"  # olive
+
+
+def model_label(key):
+    """Display label of a model key (or `actual` / `smard`)."""
+    return MODEL_STYLE[key]["label"]
+
+
+def model_line(key, width=None):
+    """Plotly `line` dict of a model key: its colour, SMARD dashed, headline rows thicker."""
+    style = MODEL_STYLE[key]
+    return {
+        "color": style["color"],
+        "dash": style.get("dash", "solid"),
+        "width": width or (2.4 if key == "actual" else 1.8),
+    }
+
+
+def style_plotly(fig, title, ylabel, xlabel=None, height=460):
+    """The app's chart look for a Plotly figure — the counterpart of `style_timeseries`.
+
+    No box, light y grid only, thousands separators, one hover box per x position, legend below.
+    `ylabel` is required: every chart states its unit.
+    """
+    fig.update_layout(
+        title={"text": title, "x": 0.5, "xanchor": "center", "font": {"size": 17}},
+        height=height,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="x unified",
+        legend={
+            "orientation": "h",
+            "yanchor": "top",
+            "y": -0.15,
+            "xanchor": "center",
+            "x": 0.5,
+        },
+        margin={"l": 60, "r": 20, "t": 60, "b": 40},
+    )
+    fig.update_xaxes(
+        title={"text": xlabel or "", "font": {"color": "grey"}},
+        showgrid=False,
+        showline=False,
+        zeroline=False,
+        ticks="",
+    )
+    fig.update_yaxes(
+        title={"text": ylabel, "font": {"color": "grey"}},
+        showgrid=True,
+        gridcolor=COLORS["grid"],
+        showline=False,
+        zeroline=False,
+        ticks="",
+        tickformat=",.0f",
+    )
+    return fig

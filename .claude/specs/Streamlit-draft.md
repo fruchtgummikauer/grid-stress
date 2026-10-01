@@ -1,5 +1,19 @@
 # Feature Spec: Initial Streamlit Application
 
+- Status: version 1 (§1–§16) run → `streamlit/` (PR #28): Home, EDA, Model. The body of §1–§16 is
+  the spec as run; where its "known current state" is out of date, a *Superseded* note points to
+  §17.
+- Version 2 (§17, planned 2026-10-01): stakeholder model pages built from the spec 09 / spec 10
+  notebooks, interactive with Plotly. Branch: `feature/streamlit-model-dashboard`.
+- Built one step at a time, with a review and an approved commit per step.
+
+## Changes after the first run
+
+| Change | Why |
+|---|---|
+| Imports `from data_loading …` / `from viz_helpers …` instead of `from streamlit.…` (step 1 of §17) | The installed `streamlit` package shadowed the `streamlit/` folder, so every page failed with `ModuleNotFoundError`; Streamlit puts the main script's folder on `sys.path` |
+| Plotly moved from the dev group to the runtime dependencies; `viz_helpers.py` gains the model, bin and risk colours of the visualization notebooks plus `style_plotly` / `model_line` / `model_label`; the `chart-style` skill allows Plotly for the model pages (step 2 of §17) | Stakeholders need zoom, hover and series toggles; §11's approval rule was followed (team decision, 2026-10-01) |
+
 ## 1. Goal
 
 Create the first Streamlit application for the project.
@@ -95,6 +109,12 @@ un-parked and implemented. The same applies to `04.1-naive-baseline.md` (naive/p
 baselines, skill scores) and `04.3-risk-label-link.md` (SMARD-forecast-vs-risk-label error,
 flag agreement, confusion matrix, precision/recall) — both are parked, not run, and nothing in the
 repository currently implements them.
+
+> *Superseded (2026-10-01):* 04.1 / 04.2 / 04.3 are still parked, but spec 09
+> (`visualization-01-regression-best-models.ipynb`) now compares our forecasts with SMARD, and
+> spec 10 (`visualization-02-classification-risk-labels.ipynb`) scores hits, misses, false alarms,
+> recall and precision of the risk flags **on the test window**. Version 2 (§17) presents those;
+> nothing from the parked specs.
 
 What *does* exist and is safe to reuse:
 
@@ -205,6 +225,10 @@ Present the current modeling, risk-label, and evaluation work available in the r
 For this first version, the Model page should also serve as the main place for communicating the project's current risk-analysis findings.
 
 The exact contents must be derived from repository evidence.
+
+> *Superseded (2026-10-01):* six models are saved in `data/models/<model_key>/`, and specs 09 and
+> 10 score them against SMARD. The model content moves to the version 2 pages (§17); this page
+> becomes "Method: risk definition".
 
 **Known current state (verify again at Phase 1, since it may change before implementation):**
 there is no trained model of our own and no saved model artifact anywhere in the repository —
@@ -422,6 +446,9 @@ Requirements:
 * clearly handle missing files or unavailable artifacts
 
 Any data transformations performed by the application should match existing project logic.
+
+> *Superseded (2026-10-01):* `data/metrics/` and `risk_labels_*.csv` are on disk now; the version 2
+> exports are not (see §17, Data).
 
 **Known gap to re-check at Phase 1:** as of this spec's last inspection, `data/risk_classification/`
 and `data/metrics/` contained only their `.gitkeep` placeholders — the CSV exports from
@@ -674,3 +701,190 @@ Return:
 11. a proposed content map for Home, EDA, and Model
 
 Then stop and wait for user approval.
+
+---
+
+## 17. Version 2 — Stakeholder model pages
+
+### Goal
+
+Show stakeholders (non-technical, data-literate) **where our day-ahead residual-load forecast beats
+SMARD's** and **whether it catches risk days better**. Both answers already exist as notebooks:
+
+- [09-best-model-plots.md](09-best-model-plots.md) →
+  `notebooks/05_modeling/visualization-01-regression-best-models.ipynb`: accuracy picks vs SMARD.
+- [10-model-risk-labeling.md](10-model-risk-labeling.md) →
+  `notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb`: spec 02's risk flags
+  on the picks vs SMARD.
+
+Version 2 ports their charts and ideas to two new **interactive Plotly** pages. It does not add
+analysis: every number comes from the exports below, and text states numbers through f-strings,
+never copied from a notebook's dated findings.
+
+### Decisions (team, 2026-10-01)
+
+| Decision | What |
+|---|---|
+| Chart library | Plotly for the model pages; the EDA and method pages stay matplotlib (`chart-style` skill) |
+| Models shown | The notebook picks by default: the `N_PICKS` overall picks for accuracy, `high_model` / `low_model` for risk. A "compare all models" selector below each headline chart adds any registry row |
+| Pages | Two new pages, not four: accuracy, by-situation and explorer merged into one page; risk days the other |
+| Scope | Plan, then build step by step on `feature/streamlit-model-dashboard` |
+| CLAUDE.md | Not edited in this version until the team says so |
+
+### Data
+
+Read only; the app computes no new results and changes no file.
+
+| File | Producer | Use |
+|---|---|---|
+| `data/models/model_scoreboard.csv` | `regression-models-claude.ipynb` (spec 06), `EXPORT_ENABLED` | Scoreboard values, pick rules, self-check |
+| `data/models/model_forecast_errors_hourly.csv` | same | Test hours, forecasts, errors |
+| `data/metrics/smard_forecast_errors_hourly.csv` | `forecast-metrics-claude.ipynb` (spec 04) | SMARD's forecast and error |
+| `data/risk_classification/model_risk_labels_{daily,hourly}.csv` | `visualization-02-…ipynb` (spec 10), `EXPORT_ENABLED` | Thresholds, flags and ranges per source (`actual`, `model`, `smard`), `high_model` / `low_model` |
+
+- The risk page reads flags from the spec 10 export, so **no rule function is ported** and no
+  threshold is recomputed (CLAUDE.md rule).
+- Flags stay three-state (`boolean`); an empty flag is "not evaluable", never `fillna(False)`.
+- A missing file shows `st.error` naming the producing notebook (and the toggle), as the notebooks'
+  `load()` does; the page then stops.
+- A light snapshot self-check (spec 09 Behaviour 5) compares the rebuilt MAE and hour counts with
+  the scoreboard; on a mismatch, `st.error` names the file to regenerate.
+- **Prerequisite:** the `data/models/model_*.csv` and `model_risk_labels_*.csv` files are not on
+  disk (2026-10-01). Re-run `regression-models-claude.ipynb` with `load_saved = "results"` and
+  `EXPORT_ENABLED` on, then `visualization-02-…ipynb`. Both are spec outputs: a team member runs
+  them, or Claude after explicit confirmation.
+
+### Notebook → app mapping
+
+| Notebook chart / idea | Source | App |
+|---|---|---|
+| Picks table, Scoreboards A / B | spec 09 §3 | KPI cards and a simplified table |
+| Monthly skill vs SMARD | spec 09 §4.1 | Headline chart (page 1) |
+| Cumulative advantage | spec 09 §4.2 | Page 1, ending value as a KPI |
+| Skill by hour of day | spec 09 §4.3 | Page 1 |
+| Week view + hourly "who was closer" bars | spec 09 §4.4 | Page 1, week selector |
+| Monthly MAE / bias / persistence, worst month | spec 09 §9.1 | Page 1 expander and the "where we lose" note |
+| MAE by hour, ordinary hours | spec 09 §5.1 | Page 1, accuracy by situation |
+| Error-range bars (middle 80 %, bias diamond) | spec 09 §5.2 / 6.2 / 7.2 / 8.2 | Page 1, one tab per bin |
+| Flagging scatter (hits / misses / false alarms) | spec 09 §6.1 / 7.1 / 8.1 | Page 1, same tabs |
+| Day scores: hits, misses, false alarms, recall, precision | spec 10 §3 | Page 2 scorecard |
+| Risk calendar | spec 10 §4.1 / 5.1 | Page 2 |
+| Zoom weeks with threshold and flag strip | spec 10 §4.2 / 5.2 | Page 2, week picker |
+| Day margin | spec 10 §4.3 / 5.3 | Page 2 |
+| Findings (weekend lead, Nov–Mar weekdays, small counts) | spec 10 §7 | Page 2 text, computed live |
+
+### Behaviour
+
+**Shared code**
+
+1. **`streamlit/model_results.py`** holds cached loaders and derived quantities, ported (not
+   imported) from spec 09 §1.2–§2 and spec 10 §1.2:
+   - `load_exports()`, with the missing-file handling above. The `data/` folder is found through
+     `data_loading._find_data_dir`.
+   - Common hours, the `P1 / P25 / P75 / P99` edges, `bin_masks`, full months and monthly MAE.
+   - Spec 09's pick rules (`forecast_share`, `failed_rules`, `rank_key`) and settings (`N_PICKS`,
+     `MIN_BIN_SHARE`, `CANDIDATE_SPLIT`), so the picks are computed from the scoreboard and never
+     hardcoded. Risk picks come from `high_model` / `low_model`.
+2. **Charts** use `viz_helpers.style_plotly`, `model_line` and `model_label`, and the colours
+   `MODEL_STYLE`, `BIN_COLOR`, `RISK_COLOR`, `OUTCOME_COLOR` and `HOLIDAY_COLOR` (step 2, done). Each
+   axis title states its unit (`MWh`, `%`).
+
+**Page 1 — `pages/1_Where_we_beat_SMARD.py`**
+
+3. KPI cards: test MAE against SMARD's, skill vs SMARD (%), months won `x / n`, cumulative MWh
+   saved, each for the first overall pick, with the others in the help text.
+4. Monthly skill chart: one line or bar group per overall pick, 0 = SMARD. A shaded band marks the
+   **longest run of consecutive full months that every overall pick wins**, derived from the data;
+   annotations mark the best and the worst month.
+5. Cumulative advantage `Σ(|e SMARD| − |e pick|)`, skill by hour of day, and the week view (actual,
+   SMARD, first pick; the hourly advantage bars below on a shared x axis). The week selector lists
+   every full Monday–Sunday test week, and the default is the last one.
+6. Expander "The numbers behind it": spec 09 §9.1's monthly table and the worst month's day count.
+7. Under each headline chart, a "compare all models" multiselect, defaulting to the picks.
+8. Section "Accuracy by situation", with tabs `ordinary`, `below_zero`, `low_extreme` and
+   `high_extreme` (stakeholder labels from `BIN_LABEL`). Each tab shows:
+   - the picks of that bin as cards (MAE by actual against SMARD's, forecast share)
+   - error-range bars
+   - the flagging scatter (one subplot per row, counts per quadrant)
+   - for `ordinary` only, MAE by hour
+   - a category with no picks says so, as spec 09's `has_picks` does
+9. Expander "Forecast explorer": the whole test window (actual, SMARD, chosen models) with a range
+   slider and an error chart below on the same x axis. Presets: the last full week, spec 10's
+   default zoom weeks, the best and the worst month.
+
+**Page 2 — `pages/2_Risk_days.py`**
+
+10. Tabs High and Low. Low has a `rolling` / `zero` basis toggle, and a `3h` toggle switches the
+    day rule from `any`.
+11. A plain-words scorecard per tab, e.g. "caught *h* of *n* risk days (SMARD *h′*), *f* false
+    alarms (SMARD *f′*)", with recall and precision, built on the evaluable days as in spec 10 §3.
+    The denominator always shows, and so does the small-count caveat when *n* is small.
+12. Risk calendar as a Plotly grid of ISO weeks × weekdays, model above SMARD:
+    - the outcome categories in `RISK_COLOR` / `OUTCOME_COLOR`
+    - holidays outlined in `HOLIDAY_COLOR`, a dot for days the actual sustains for 3 h
+    - hover text with the date, the outcome and each source's flagged hours
+13. Zoom week: the three series against the day's threshold, with the flag strip below.
+    - The week picker defaults to spec 10's zoom rules: high, the week with the most actual high
+      days; low, the flagged holiday with the lowest day minimum.
+14. Day-margin scatter: day extreme minus threshold, actual against forecast, quadrants as in spec
+    10 §4.3 / 5.3.
+15. Short findings text computed live: the weekday / weekend split of hits and misses, and the
+    months of the high days.
+
+**Restructure**
+
+16. The existing pages move behind the new ones and are renamed:
+    - `pages/1_EDA.py` → `pages/3_Background.py`
+    - `pages/2_Model.py` → `pages/4_Method.py`, retitled "Method: risk definition", without the "no
+      model of our own" banner and the hardcoded `(2019–2026)`
+17. Home gets a one-sentence answer and a KPI row from `model_results.py`, plus a "Limits" section:
+    - one test year
+    - small high-risk counts
+    - more false alarms than SMARD where the export shows it
+    - the losing months
+    - national data only
+18. All findings text follows the `interpretation-style` skill: the number first, then why, then the
+    caveat.
+
+### Steps
+
+| Step | Content | Status |
+|---|---|---|
+| 1 | Import fix | Done, committed (`3713c29`) |
+| 2 | Plotly as a runtime dependency, colours and style helpers, `chart-style` skill | Done, not committed |
+| 3 | `model_results.py` (Behaviour 1) | Written and checked on synthetic exports, not committed; the check against the real exports waits on Data's prerequisite |
+| 4 | Page 1 (Behaviour 3–9) | Written and checked on synthetic exports, not committed; the explorer's spec 10 zoom-week presets were added in step 5 |
+| 5 | Page 2 (Behaviour 10–15) | Written and checked on synthetic exports, not committed. The zoom rules, `persistent_hours`, `flagged_span` and the holidays live in `model_results.py`, shared with page 1's explorer. The day margin always uses the `any` rule, as in spec 10 |
+| 6 | Restructure and text (Behaviour 16–18) | |
+
+### Files
+
+- New (3): `streamlit/model_results.py`, `streamlit/pages/1_Where_we_beat_SMARD.py`,
+  `streamlit/pages/2_Risk_days.py`.
+- Changed (8): `streamlit/streamlit_app.py`, `pages/1_EDA.py` and `pages/2_Model.py` (renamed),
+  `streamlit/viz_helpers.py`, `pyproject.toml`, `uv.lock`, `.claude/skills/chart-style/SKILL.md`,
+  this spec.
+- Untouched: both visualization notebooks, every other spec output notebook, `CLAUDE.md` (until the
+  team says so).
+
+### Acceptance criteria
+
+- [ ] Every page runs through `streamlit.testing.v1.AppTest` with no exception, including the
+      "exports missing" path (a clear message, no traceback).
+- [ ] `uv run streamlit run streamlit/streamlit_app.py`: zoom, hover, legend toggle, selectors and
+      tabs work.
+- [ ] On the 2026-09-30 snapshot, the app reproduces the notebooks:
+  - Random forest hybrid MAE 2,333 against SMARD's 2,790 MWh (+16.4 %)
+  - months won 9 / 10 / 10 of 11
+  - high `rolling any`: 8 of 12 days against SMARD's 7
+  - low `rolling any`: 35 of 57 against 30
+  - 8,758 common hours (spec 09) and 8,759 (spec 10)
+- [ ] No number, date, year, threshold or model key is hardcoded in the app; all come from the
+      exports.
+- [ ] No threshold or flag is recomputed; nothing from the parked specs 04.1 / 04.2 / 04.3 appears.
+
+### Out of bounds
+
+- Refitting models, new metrics or significance tests, ensembles.
+- Prediction intervals (spec 06 §6 / §7.4 / §7.6), and reBAP costs: a later decision for the team.
+- Editing the visualization notebooks or re-running any spec without a team member's confirmation.

@@ -20,6 +20,7 @@ dependencies = [
     "streamlit>=1.64.0",
     "scipy>=1.17.1",
     "joblib>=1.6.0",
+    "plotly>=7.0.0",
 ]
 
 [dependency-groups]
@@ -30,7 +31,6 @@ dev = [
     "testbook",
     "black",
     "nbdime",
-    "plotly>=7.0.0",
     "missingno>=0.5.2",
     "gh>=0.0.4",
 ]
