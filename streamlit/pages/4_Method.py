@@ -1,13 +1,13 @@
-"""Model page — risk-label definition and the SMARD forecast benchmark.
+"""Method page — risk-label definition and the SMARD forecast benchmark.
 
-Per `.claude/specs/Streamlit-draft.md` §5 Page 3: there is no trained model of our own yet
-(`modeling/*.py` is unrelated coffee-dataset template code, `models/` is empty). Real content
-comes from two read-only, team-reviewed notebooks:
+Version 1 of `.claude/specs/Streamlit-draft.md` §5 Page 3, renamed from `2_Model.py` in §17
+(Behaviour 16): our own forecasts now live on the "Where we beat SMARD" and "Risk days" pages, so
+this page keeps the method behind them. Content comes from two read-only, team-reviewed notebooks:
 
 - `notebooks/03_risk_classification/risk-definition.ipynb` — the risk-label definition and
   threshold construction.
 - `notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb` — SMARD's own day-ahead forecast
-  benchmarked against actuals (the target our future model has to beat).
+  benchmarked against actuals (the benchmark our models are scored against).
 
 Both notebooks' exported CSVs (`data/risk_classification/`, `data/metrics/`) are not needed here:
 every number below is computed directly from `data/smard.csv`, the same way the source notebooks
@@ -19,20 +19,20 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from streamlit.data_loading import load_smard
-from streamlit.viz_helpers import COLORS, TAIL_COLOR, style_timeseries
+from data_loading import load_smard
+from viz_helpers import COLORS, TAIL_COLOR, style_timeseries
 
-st.set_page_config(page_title="Model — Grid Stress", page_icon="🧭", layout="wide")
-st.title("Risk Label & Forecast Benchmark")
+st.set_page_config(page_title="Method — Grid Stress", page_icon="🧭", layout="wide")
+st.title("Method: risk definition and the SMARD benchmark")
 st.caption(
     "Sources: `notebooks/03_risk_classification/risk-definition.ipynb` and "
     "`notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb` (both read-only)."
 )
 
-st.warning(
-    "**No model of our own exists yet.** `modeling/*.py` is unrelated template code, and "
-    "`models/` holds no saved artifact. This page presents the risk-label definition and the "
-    "public SMARD forecast benchmark — the target a future model of ours will need to beat."
+st.info(
+    "How a **risk day** is defined, and how good SMARD's public forecast is over the whole record. "
+    "Our own forecasts are scored with these definitions on the **Where we beat SMARD** and "
+    "**Risk days** pages."
 )
 
 try:
@@ -221,12 +221,12 @@ residual_row = headline.loc["Residual load"]
 st.markdown(
     f"""
 SMARD (the German grid regulator) already publishes a day-ahead forecast of residual load — the
-demand left over after wind and solar. This is the public benchmark our own forecast will need
-to beat, not a model we built.
+demand left over after wind and solar. This is the public benchmark our own forecasts are scored
+against, not a model we built.
 
 - **On an average hour, SMARD's forecast is off by about {residual_row['MAE (MWh)']:,.0f} MWh** —
   roughly {residual_row['nMAE (%)']:.0f} % of typical residual load — measured over
-  {residual_row['hour_count']:,} hours (2019–2026).
+  {residual_row['hour_count']:,} hours ({time_series.index.min():%Y}–{time_series.index.max():%Y}).
 
 - **Grid demand is easier to forecast than the renewable side.** SMARD's grid-load forecast is
   off by only {headline.loc['Grid load', 'nMAE (%)']:.0f} % on average, versus

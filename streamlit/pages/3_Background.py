@@ -1,4 +1,7 @@
-"""EDA page — sourced from `notebooks/01_eda/team-EDA.ipynb`.
+"""Background page (the EDA) — sourced from `notebooks/01_eda/team-EDA.ipynb`.
+
+Renamed from `1_EDA.py` in `.claude/specs/Streamlit-draft.md` §17 (Behaviour 16); the content is
+unchanged.
 
 Per `.claude/specs/Streamlit-draft.md` §5 Page 2: `team-EDA.ipynb` is the primary, team-reviewed
 source for this page. Every plot below ports that notebook's actual plotting code (cited by
@@ -21,8 +24,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from streamlit.data_loading import get_years, load_smard
-from streamlit.viz_helpers import (
+from data_loading import get_years, load_smard
+from viz_helpers import (
     COLORS,
     DAY_TYPE_COLOR,
     DIV_CMAP,
@@ -35,8 +38,8 @@ from streamlit.viz_helpers import (
     year_colors,
 )
 
-st.set_page_config(page_title="EDA — Grid Stress", page_icon="📊", layout="wide")
-st.title("Exploratory Data Analysis")
+st.set_page_config(page_title="Background — Grid Stress", page_icon="📊", layout="wide")
+st.title("Background: how residual load behaves")
 st.caption("Source: `notebooks/01_eda/team-EDA.ipynb` (team-reviewed, read-only).")
 
 try:

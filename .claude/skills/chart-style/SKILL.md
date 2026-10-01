@@ -54,12 +54,32 @@ stay identical is which role each series plays and that role's relative warm/coo
 - **A colour per year is sampled from a continuous colormap (`year_colors`), never a fixed
   year→colour table.** The record's span changes on every re-fetch; a hardcoded mapping breaks
   silently when a year is added.
-- **Matplotlib for styled/axis-precise charts, seaborn only for hue-faceted line plots**
-  (`seasonal_plot`-style month-on-x, year-as-hue). Don't introduce a third plotting library for a
-  page-specific chart — check `viz_helpers.py` and the source notebook for an existing helper
-  first.
+- **Three libraries, each with its own pages:** matplotlib for the EDA and method pages
+  (styled/axis-precise ports of the notebooks), seaborn only for hue-faceted line plots there
+  (`seasonal_plot`-style month-on-x, year-as-hue), and **Plotly for the model pages** (see below).
+  Don't introduce a fourth library for a page-specific chart — check `viz_helpers.py` and the
+  source notebook for an existing helper first.
 - **Figures are closed after rendering** (`plt.close(fig)` after `st.pyplot(fig)`), so repeated
   Streamlit reruns don't leak matplotlib figures.
+
+## Model pages (Plotly)
+
+The pages that compare our forecasts with SMARD are interactive (zoom, pan, hover, legend
+toggles) for a stakeholder audience, so they use Plotly (team decision, 2026-10-01).
+
+- **Colours come from the visualization notebooks, not from the EDA table above.**
+  `MODEL_STYLE` (one colour per model, `actual` near-black, `smard` grey and dashed), `BIN_COLOR`
+  (residual-load bins) and `RISK_COLOR` / `OUTCOME_COLOR` / `HOLIDAY_COLOR` (risk labels) are
+  copied from `visualization-01-regression-best-models.ipynb` and
+  `visualization-02-classification-risk-labels.ipynb`, so a model looks the same in the notebook
+  and in the app. Bin and risk colours mark regions, thresholds and flags — never a model.
+- **Every Plotly figure goes through `style_plotly(fig, title, ylabel, xlabel=None)`** — the
+  counterpart of `style_timeseries`: white background, no box, light y grid, thousands
+  separators, unified hover, legend below. `ylabel` is required (units as above).
+- **Lines use `model_line(key)` and `model_label(key)`**, so colour, dash and label come from one
+  table.
+- Render with `st.plotly_chart(fig)` (full width is the default; `use_container_width` is
+  deprecated); no `plt.close` is needed.
 
 ## Adding a new colour or helper
 
