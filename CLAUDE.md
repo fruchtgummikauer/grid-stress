@@ -154,7 +154,7 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
 | 08 Ensemble | Run → `ensemble-claude.ipynb` (reference) + three `data/models/ensemble_*.csv`; reads the spec 06 model saves (no refit), weights / edges / windows chosen on the validation year only, bands from out-of-fold validation forecasts; member diagnostic uses spec 09's pick rule and spec 10's risk flags; about 4 min |
 | 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
-| 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run* |
+| 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run*; one pick per direction vs SMARD (`PICKS`, set by hand from spec 09 rank 1; an ensemble key only if it beats that pick, never added on top) |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
 Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent
