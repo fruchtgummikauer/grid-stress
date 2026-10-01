@@ -1,89 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repository. The detail lives in the specs (`.claude/specs/`) and
+their output notebooks; this file holds the rules and the gotchas that are easy to get wrong.
 
 ## Project
 
 Capstone project forecasting **German power grid load & stability** from SMARD data
-(Bundesnetzagentur).
-Team project (neuefische bootcamp) with 4 members, work happens on `feature/*` branches
-off `main`.
+(Bundesnetzagentur). Team project (neuefische bootcamp), 4 members, `feature/*` branches off `main`.
 
-- We use data for installed power plants, their power generation & Germany's power consumption to predict the power Germany needs in it's grid for 1 Day ahead.
-- We want to create our own model with a time-series analysis to spot days with risk of intervention measures by the grid operators (=TSOs).
-- We want to create a risk flag for this by using `residual load` as a target variable
-- Extreme cases of `residual load` are our risk cases
-  - high residual load (imports, tight margins)
-  - negative residual load (renewable oversupply, negative prices, downward redispatch)
-- Since we have public comparison values for `predicted residual load` by SMARD.de we can use this to validate our own models.
+- Day-ahead forecast of **`residual_load`** from installed capacity, generation and consumption.
+- Risk cases are its extremes: **high** (imports, tight margins) and **negative** (renewable
+  oversupply, negative prices, downward redispatch) — days at risk of TSO intervention.
+- SMARD publishes its own `Forecast Residual Load`: the benchmark our models must beat.
 
-**Scope simplifications:**
-
-- Energy generation features are limited to only Wind + Solar. We have published day-ahead forecasts for those only which makes up our baseline to beat. Solar and Wind are also the largest variable sources
-- We are therefore excluding all other generation features (e.g. biomass, coal, water, ...) for the scope of this project
+**Scope:** generation features are Wind + Solar only (the only sources with published day-ahead
+forecasts, and the largest variable ones); all other generation (biomass, coal, water, …) is out.
 
 ## Environment & commands
 
-`uv` manages the environment — never call `pip install`. `uv run` re-syncs the venv against
-`uv.lock` before running, so prefer it over activating `.venv`.
+`uv` manages the environment — never `pip install`. Prefer `uv run` (re-syncs against `uv.lock`).
 
 ```bash
-make setup      # uv sync --all-groups  (runtime + dev deps, downloads Python >=3.11 if needed)
+make setup      # uv sync --all-groups
 make lab        # uv run jupyter lab
-make test       # uv run pytest
-make format     # uv run black .        (black is the formatter; no linter configured)
-make mlflow     # uv run mlflow ui      -> http://127.0.0.1:5000
-make train      # uv run python -m modeling.train
-make predict    # uv run python -m modeling.predict models/linear data/X_test.csv data/y_test.csv
+make test       # uv run pytest   (no test suite yet; testbook is available for notebook cells)
+make format     # uv run black .  (no linter)
+make mlflow     # uv run mlflow ui -> http://127.0.0.1:5000
 ```
 
-Run a single test: `uv run pytest path/to/test_file.py::test_name`.
-There is no test suite yet — `testbook` is available for testing notebook cells.
+Dependencies: `uv add <pkg>` (runtime), `uv add --group dev <pkg>` (notebook/tooling), `uv remove`,
+`uv lock --upgrade`. See [UV_SETUP.md](UV_SETUP.md).
 
-Dependency changes go through uv so `pyproject.toml` and `uv.lock` stay in sync:
-`uv add <pkg>`, `uv add --group dev <pkg>`, `uv remove <pkg>`, `uv lock --upgrade`.
-Runtime deps are `[project.dependencies]`; notebook/tooling deps live in the `dev` group.
-See [UV_SETUP.md](UV_SETUP.md) for the long form.
+## Repository layout
 
-## Repository layout and what is real vs. template
-
-This repo started from the neuefische `ds-modeling-template`. **Most of `modeling/` is still that
-template** — `train.py`, `predict.py` and `feature_engineering.py` operate on the **coffee quality
-dataset**, not on grid data. Treat them as reference scaffolding for the MLflow logging pattern,
-not as project code; the same goes for `notebooks/EDA-and-modeling.ipynb` and the MLflow sections
-of [README.md](README.md), which documents that workflow in full.
-
-Two pieces are real: `modeling/config.py` reads the MLflow tracking URI from a local `.mlflow_uri`
-file, falling back to the `MLFLOW_URI` env var (both gitignored); `EXPERIMENT_NAME` is still the
-template default `0-template-ds-modeling`. And `__init__.py` at the repo root is an intentional
-placeholder — the eventual home for productionized code extracted out of the notebooks.
-
-Actual project work lives in `notebooks/`:
+Started from the neuefische `ds-modeling-template`. **`modeling/train.py`, `predict.py`,
+`feature_engineering.py`, `notebooks/EDA-and-modeling.ipynb` and the MLflow parts of README.md are
+template code on a coffee dataset** — reference for the MLflow pattern only (`make train` /
+`make predict` belong to it). Real: `modeling/config.py` (MLflow URI from gitignored `.mlflow_uri`
+or `MLFLOW_URI`; `EXPERIMENT_NAME` still the template default) and the root `__init__.py`
+placeholder for future productionized code.
 
 ```
 notebooks/
-  API-connection.ipynb          # the data pipeline — both raw datasets
-  EDA-and-modeling.ipynb        # template leftover (coffee dataset) - ignore
-  00_project_management/
-    PM-Session1.ipynb           # roadmap, Miro/wiki links, domain terms - ignore, just for team documentation
-    PM_session2_Hari.ipynb      # Hari's PM session 2 review (saved figures only) - ignore, team documentation
+  API-connection.ipynb          # data pipeline — both raw datasets
+  EDA-and-modeling.ipynb        # template leftover - ignore
+  00_project_management/        # team documentation - ignore
   01_eda/
-    EDA-hari.ipynb              # per-member exploration
-    EDA-magc.ipynb              # per-member exploration
-    EDA-rebap-magc.ipynb        # per-member exploration of reBAP
-    EDA-robert.ipynb            # per-member exploration
-    EDA-simple-claude.ipynb     # reference: spec 01 output (edited), not adopted
-    team-EDA.ipynb              # adopted: spec 03 output
+    EDA-{hari,magc,robert}.ipynb, EDA-rebap-magc.ipynb   # per-member exploration
+    EDA-simple-claude.ipynb     # reference: spec 01
+    team-EDA.ipynb              # adopted: spec 03
   02_forecast_metrics/
-    forecast-metrics-claude.ipynb  # reference: spec 04 output
+    forecast-metrics-claude.ipynb          # reference: spec 04
   03_risk_classification/
-    risk-definition.ipynb       # adopted: spec 02 output
+    risk-definition.ipynb                  # adopted: spec 02
   04_feature_engineering/
-    feature-engineering-magc.ipynb         # spec 05 output (origin 00:00 on DAY), -magc by team choice
-    feature-engineering-cutoff-magc.ipynb  # spec 06.1 output: spec 05's features at spec 06's cutoff
-    data-leakage-demo-claude.ipynb         # reference, no spec: why fc_grid_load + fc_gen_wind_solar leak the target
-    feature_library/                       # "AtlasFeatureLibrary": static HTML docs of the engineered features
-    Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # per-member (Hari), experimental - do not read yet
+    feature-engineering-magc.ipynb         # spec 05 (origin 00:00 on DAY)
+    feature-engineering-cutoff-magc.ipynb  # spec 06.1 (spec 05 features at spec 06's cutoff)
+    data-leakage-demo-claude.ipynb         # reference, no spec: why fc_grid_load + fc_gen_wind_solar leak
+    feature_library/                       # static HTML docs of the features
+    Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # do not read yet (absolute paths, not cleaned up)
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06 output, refactored by the team
     regression-models-magc.ipynb    # spec 06.2 output: a copy of the -claude notebook with 06.1's features
@@ -285,138 +260,138 @@ hour of the record, indexed by `timestamp`.
   (spec 06.1): the same feature definitions rebuilt at spec 06's availability cutoff; `timestamp`,
   `cutoff` and 16 feature columns. `regression-models-magc.ipynb` does not read this file: it
   rebuilds the same definitions inside its own feature builder.
+    regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
+    regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
+    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category vs SMARD
+    visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
+```
+
+- `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md) (Home / EDA /
+  Model); chart styling via the `chart-style` skill; no `make` target. **Known issue:** imports like
+  `streamlit.data_loading` are shadowed by the installed `streamlit` package → `ModuleNotFoundError`.
+- `images/` — README screenshots. `models/` — gitignored template output.
+
+## Data
+
+**`data/` is gitignored** (each subfolder has its own rule and a `.gitkeep`); nothing comes with a
+clone except the model saves in `data/models/<model_key>/` (committed on purpose). Raw files come
+from [API-connection.ipynb](notebooks/API-connection.ipynb); derived files are regenerated by
+re-running their producer.
+
+| File | Producer | Format |
+| --- | --- | --- |
+| `data/smard.csv` | API-connection (SMARD API, no key) | **German CSV**: `sep=";"`, `decimal=","`, `utf-8-sig` |
+| `data/rebap.csv` | API-connection (netztransparenz, OAuth2 via `.env`) | semicolon CSV |
+| `data/risk_classification/risk_labels_{daily,hourly}.csv` | `risk-definition.ipynb` | plain CSV |
+| `data/risk_classification/model_risk_labels_{daily,hourly}.csv` | `visualization-02-classification-risk-labels.ipynb` (spec 10), if `EXPORT_ENABLED` (default on) | plain CSV |
+| `data/metrics/smard_*.csv` | `forecast-metrics-claude.ipynb` (spec 04) | plain CSV |
+| `data/models/model_*.csv` | `regression-models-claude.ipynb` (spec 06), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
+| `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
+| `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2), only if `EXPORT_ENABLED` | plain CSV, long format |
+| `data/features/residual_load_features{,_cutoff}.csv` | the two feature-engineering notebooks | plain CSV |
+
+Column layouts are defined in the producing spec. Gotchas:
+
+- **`smard.csv`**: read with `delimiter=";", encoding="utf-8-sig"` and convert numerics
+  (`str.replace(",", ".")` → `float`). Hourly, `Europe/Berlin`, from 2019-01-01; the end moves with
+  every re-fetch, so **never hardcode a calendar year** — derive from `YEARS`. Whole-record
+  quantiles shift with re-fetches (why spec 02 avoids them). The `cap_*` columns are yearly step
+  values repeated hourly, not measurements.
+- **DST:** one gap per spring switch (missing 02:00, next row 03:00) — the count grows with the
+  record, never hardcode it. Autumn days have 24 rows, no marker.
+- **reBAP stays out of shared work** (no team EDA, no model features) — reserved for cost
+  calculation after modelling. Never paste credentials into a notebook.
+- **Risk labels: an empty flag means "not evaluable"** (first 365 days, incomplete day), never "not
+  at risk" — never `fillna(False)`. Apply the exported thresholds to other series by joining on
+  `date`; never recompute them against another series. Same rule for `model_risk_labels_*.csv`,
+  where `model` in `high_*` / `low_*` columns is that direction's pick (`high_model` / `low_model`).
+- **SMARD errors:** `err_* = forecast − actual` (positive = over-forecast); missing forecasts stay
+  empty. `smard_forecast_errors_hourly.csv` is the source of truth for re-scoring any window. Use
+  `offset_max_h` / `offset_min_h`, not timestamp subtraction (1 h off on DST days).
+- **Model exports:** SMARD's hourly values are not in `model_forecast_errors_hourly.csv` — join
+  `data/metrics/` on `timestamp`. The `-magc` scoreboard predates the refactor (bins `bottom` /
+  `ordinary` / `top`, no `below_zero`, 24-month window) — don't compare it with the `-claude` one by
+  metric name. `visualization-01-regression-best-models.ipynb` reads only the `-claude` exports; its
+  self-check stops when they and `data/metrics/` come from different runs.
+- **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops
+  after a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle —
+  load team saves only.
+- **Features:** `residual_load_features.csv` (spec 05) is **not** leakage-safe under spec 06's 18:00
+  issue time; the `_cutoff` file (spec 06.1) is.
 
 ## Specs and how we use Claude's output
 
-Specs live in **`.claude/specs/`**, numbered. Spec 03 grew too large for one document and is split into a parent plus seven sub-specs (`03.1`–`03.7`), each a complete spec for one notebook section. Spec 04 works differently: its sub-specs `04.1`–`04.3` are **parked** stubs, deliberately kept out of spec 04 and never run with it — only when a team member explicitly asks. Spec 05.1 is parked the same way. Spec 06's sub-specs `06.1` and `06.2` are follow-ups that a team member ran into separate `-magc` notebooks, leaving the spec 06 notebook unchanged.
-
-The specs are run by the team members and outputs (Code, Claude's interpreation) are edited after that. Do not overwrite these edits. The specs are meant to be run once or if a team member explicitly tells Claude to overwrite (with additional user confirmation) an existing spec output notebook.
-
-**Every spec is a starting point.** Never re-run a spec, and never edit an output notebook back
-towards its spec — cells that differ from the spec are the team's edits, not drift to repair.
+Specs live in `.claude/specs/`. **Every spec is a starting point**: run once, then the team edits
+the output (code and interpretation). Never re-run a spec, never overwrite an output notebook
+(only on a team member's explicit request plus confirmation), and never edit it back towards its
+spec — differences are team edits. **Always ask before editing any spec output notebook.**
 
 | Spec | Status |
-|---|---|
-| [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md) | Run → `notebooks/01_eda/EDA-simple-claude.ipynb` (reference). The output was edited after it was run (code & interpreation). Do not overwrite the notebook and always ask before you would attempt any edit. |
-| [02-Risk-Definition.md](.claude/specs/02-Risk-Definition.md) | Run → `notebooks/03_risk_classification/risk-definition.ipynb` (adopted). The team condensed, fact-checked and reworded the findings. Do not overwrite the notebook and always ask before you would attempt any edit. See the decision status below. |
-| [03-combined-cherry-picked-eda.md](.claude/specs/03-combined-cherry-picked-eda.md) + `03.1`–`03.7` | Run → `notebooks/01_eda/team-EDA.ipynb` (adopted). The team modified some plots and interpretations after the spec was run. Do not overwrite the notebook and always ask before you would attempt any edit. |
-| [04-forecast-metrics.md](.claude/specs/04-forecast-metrics.md) | Run → `notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb` (reference) plus the three `data/metrics/smard_*.csv` exports. Regression benchmark of SMARD's day-ahead forecasts (MAE, RMSE, bias, nMAE, `hour_count`) on `data/smard.csv` alone. Built section by section with team review of every section. Do not overwrite the notebook and always ask before you would attempt any edit. |
-| [04.1-naive-baseline.md](.claude/specs/04.1-naive-baseline.md) | Parked. Naive persistence baselines and skill scores. Not run with 04. |
-| [04.2-streamlit-views.md](.claude/specs/04.2-streamlit-views.md) | Parked. ISO-week level, single-window zoom, tolerance share — presentation only, never part of the benchmark. Not run with 04. |
-| [04.3-risk-label-link.md](.claude/specs/04.3-risk-label-link.md) | Parked. Error on risk hours/days and flag agreement (thresholds applied to `fc_residual_load`). Not run with 04. |
-| [05-feature-engineering.md](.claude/specs/05-feature-engineering.md) | Run → `notebooks/04_feature_engineering/feature-engineering-magc.ipynb` plus `data/features/residual_load_features.csv` (the spec file's own status line still says "draft"). Named `-magc` instead of `-claude` at the requesting team member's choice; not adopted. Defines a fixed feature set for the residual-load model (calendar, cyclical, lag, rolling, capacity-normalised, forecast-derived; 12 features in the spec), plus 2 dropped candidates and their reasons. Leakage-safe for a forecast origin at 00:00 on `DAY`, **not** for spec 06's 18:00 issue time (see 06.1). Not related to `Hari_Gridstress_feature_engineering_baselines_metrics.ipynb`. |
-| [05.1-spectral-state.md](.claude/specs/05.1-spectral-state.md) | Parked. Trailing-window FFT/spectral-state features (band energy share, amplitude, entropy) as a candidate addition to spec 05's feature set, inspired by Hari's notebook. Not run with 05. |
-| [06-regression-models.md](.claude/specs/06-regression-models.md) | Run → `notebooks/05_modeling/regression-models-claude.ipynb` (reference) plus two optional `data/models/model_*.csv` exports (`EXPORT_ENABLED`, default off). Day-ahead residual-load forecast issued at 18:00 on `DAY−1` (actuals usable up to the 16:00 cutoff, a 2 h lag), using SMARD's component forecasts as inputs (a post-processor of SMARD's forecast); seasonal naive, LightGBM / XGBoost direct and hybrid as sklearn pipelines tuned with `GridSearchCV` / `RandomizedSearchCV` over the validation walk-forward (`SEARCH`), and `sarimax_fourier` (off by default, it dominates the runtime); static and rolling split on the last 365 days; empirical 95 % intervals; scored against SMARD on identical hours. Built section by section with team review of every section; the models part was split into Models (§4) and Fitting and leakage test (§5), so the notebook has 9 sections, each ending in a self-check. The team then refactored it section by section (branch `refactor/regression-models`), and the spec was updated to describe the refactored notebook, with its Behaviour numbers kept because specs 06.2 and 07 cite them. Added after the refactor and not yet in the spec: `USE_GPU` (§1.3, default on) runs XGBoost on an NVIDIA GPU (`device="cuda"`) when `gpu_found()` detects one, else on the CPU; LightGBM's PyPI build has no GPU support, so it always runs on the CPU. GPU and CPU runs build slightly different XGBoost trees, so scoreboards from different machines do not match exactly; `USE_GPU = False` reproduces a CPU run. Do not overwrite the notebook and always ask before you would attempt any edit. |
-| [06.1-spec05-features.md](.claude/specs/06.1-spec05-features.md) | Run → `notebooks/04_feature_engineering/feature-engineering-cutoff-magc.ipynb` plus `data/features/residual_load_features_cutoff.csv` (`-magc` by team choice, as in spec 05). Rebuilds spec 05's feature definitions under spec 06's forecast setting, so no feature reads data unpublished at the availability cutoff; leakage-tested by truncation. |
-| [06.2-cutoff-features-in-models.md](.claude/specs/06.2-cutoff-features-in-models.md) | Run → `notebooks/05_modeling/regression-models-magc.ipynb` plus two optional `data/models/model_magc_*.csv` exports (`EXPORT_ENABLED`, default off); implemented in PR #33, though the spec file's status line still says "draft, not yet run". A full copy of `regression-models-claude.ipynb` with 06.1's features added to the boosters as switchable groups; the `-claude` notebook is not edited by it. The copy predates the team's refactor, so it keeps the old names (`design_rows`, `FEATURES`, `bottom` / `top` bins) and its own closing section. |
-| [07-hybrid-linear-stage.md](.claude/specs/07-hybrid-linear-stage.md) | Draft, parked. Diagnoses why the direct boosters beat the hybrids on overall MAE (suspect: the linear stage's trend, extrapolated over the static test year) while the hybrids win the tails; adds a no-trend hybrid variant. Changes `regression-models-claude.ipynb` via proposal cells only. Not run until a team member asks. |
-| [Streamlit-draft.md](.claude/specs/Streamlit-draft.md) | Run → `streamlit/` (Home / EDA / Model pages). Unnumbered. The EDA page ports `team-EDA.ipynb`; the Model page computes risk thresholds and the SMARD benchmark from `data/smard.csv` directly and handles missing derived CSVs. No trained model is shown yet. See the known import issue under *Repository layout*. |
+| --- | --- |
+| 01 Simple EDA | Run → `EDA-simple-claude.ipynb` (reference, edited) |
+| 02 Risk definition | Run → `risk-definition.ipynb` (adopted) |
+| 03 + 03.1–03.7 Combined EDA | Run → `team-EDA.ipynb` (adopted) |
+| 04 Forecast metrics | Run → `forecast-metrics-claude.ipynb` (reference) + `data/metrics/` |
+| 04.1 / 04.2 / 04.3, 05.1 | Parked — run only when a team member asks |
+| 05 Feature engineering | Run → `feature-engineering-magc.ipynb` (not adopted; file status line still says draft) |
+| 06 Regression models | Run → `regression-models-claude.ipynb` (reference) + `data/models/`; spec describes the refactored notebook, later changes under *Additions after the refactor* |
+| 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
+| 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
+| 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
+| 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
+| 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run* |
+| Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
-Decision status of `risk-definition.ipynb` — more notebooks will follow before these are final:
+Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent
+(`False` reproduces CPU); a full default run takes about 30 min on 16 cores, seconds with
+`load_saved = "results"`.
 
-- **Settled:** high and low residual load are two independently thresholded directions, not one
-  signed scale.
-- **Likely kept, not final:** both day rules (`any` and `3h`), the `rolling` basis (trailing
-  365-day quantile over `[D-365, D-1]`), and the `zero` basis for the low direction.
-- **Open:** the percentile level (1 % is a default), one model target or two, ramps as a stress
-  mode, capacity normalisation.
+`risk-definition.ipynb` decision status — **settled:** high and low are two independently
+thresholded directions. **Likely kept:** day rules `any` and `3h`, `rolling` basis (trailing
+365-day quantile over `[D-365, D-1]`), `zero` basis for low. **Open:** percentile level (1 %
+default), one target or two, ramps, capacity normalisation.
 
-**A spec run produces input for the team, not a finished deliverable.** We want Claude's analysis
-and reasoning, and we decide ourselves what to keep, adjust or throw away. Three consequences:
+How output status works:
 
-1. **The suffix marks status, not authorship.**
-   - **`<name>-claude.ipynb` = reference.** Claude's spec output, edited or not, kept as
-     inspiration for the team ("want to learn more") and as input for Claude's future specs. It
-     is *not* project knowledge, and we do not carry everything from it into the project (time &
-     scope). Example: `EDA-simple-claude.ipynb`.
-   - **No suffix = adopted.** The team reviewed and edited the output, decided to keep it, and
-     removed the suffix; every team member can treat it as part of the project. Examples:
-     `team-EDA.ipynb`, `risk-definition.ipynb`.
-   - A spec's `Deliverable:` line may therefore name either form.
-2. **Conclusions in a `-claude` notebook are proposals.** Do not cite them as project facts. An
-   adopted notebook's conclusions are project knowledge, except where the notebook itself marks
-   them open (e.g. `risk-definition.ipynb` §8 "Open for the modelling spec").
-3. **Cell tags are the review mechanism.** Team members tag plot cells in place with the reason
-   they matter — `keep`, `duplicate`, `combine with X`, `optional`, `modelling`, `streamlit`,
-   `informational`. Spec 03 then consolidates *only* tagged cells, under a strict **"no tag, no
-   plot"** rule applied uniformly (including to Claude's own untagged plots). So never silently
-   add or drop a plot during implementation: changing what is included means tagging the source
-   cell and revising the relevant sub-spec.
+1. **Suffix marks status, not authorship.** `-claude` = reference (inspiration, not project
+   knowledge). No suffix = adopted by the team. `-magc` on specs 05 / 06.1 / 06.2 is a team
+   member's choice; still a spec output, not adopted.
+2. **Conclusions in a `-claude` notebook are proposals** — never cite them as project facts.
+   Adopted notebooks are project knowledge except where they mark something open.
+3. **Cell tags are the review mechanism** (`keep`, `duplicate`, `combine with X`, `optional`,
+   `modelling`, `streamlit`, `informational`). Spec 03 applies **"no tag, no plot"** — never
+   silently add or drop a plot; change the tag and the sub-spec instead.
 
 ## Notebook conventions
 
-Notebooks live in numbered subdirectories of `notebooks/` (see the layout above). There are two
-naming tracks, and which applies depends on why the notebook exists.
-
-### Per-member exploration — `EDA-<name>.ipynb`
-
-`EDA-hari.ipynb`, `EDA-magc.ipynb`, `EDA-robert.ipynb`. These are **personal explorations and
-experiments**. Their conclusions are one member's reading of the data, not project facts — treat
-them as such and do not quote them as established. **Nobody edits anyone else's EDA file**; the
-per-name filenames exist so merge conflicts do not arise in the first place.
-
-Their loading conventions genuinely diverge, so never lift code from one into shared work without
-rebuilding it against the shared foundation:
-
-| Notebook | Reads | Notes |
-|---|---|---|
-| `EDA-hari.ipynb` | its own `data/smard_hourly_2019_2026-09-10.csv`, re-fetched in-notebook | works in **GW**, hardcodes year colours and anchor years, hand-rolls a holiday calendar |
-| `EDA-magc.ipynb` | `../../data/smard.csv` | restricted to a 2025-only window |
-| `EDA-rebap-magc.ipynb` | `data/rebap_2022-2026.csv` | reBAP, quarter-hourly, EUR/MWh; the filename differs from the pipeline's `data/rebap.csv` |
-| `EDA-robert.ipynb` | `../../data/smard.csv` | source of the original plotting helpers |
-
-### Spec-driven notebooks
-
-Named by the spec that defines them — `-claude` while a reference, suffix removed once adopted
-(see above). Exception: specs 05, 06.1 and 06.2 were run with a team member's suffix
-(`-magc`) at that member's explicit choice. Such a notebook is still a spec output, not a
-per-member exploration, and counts as not adopted while it carries a suffix. These
-are **shared files**, so conflicts are real and get resolved with `nbdime` rather than avoided by
-naming.
+- **Per-member `EDA-<name>.ipynb`**: personal explorations, not project facts. **Nobody edits
+  anyone else's EDA file.** Their loading diverges (Hari: own re-fetched CSV, GW, hardcoded years;
+  magc: 2025 only; rebap-magc: `data/rebap_2022-2026.csv`) — never lift code into shared work
+  without rebuilding it on the shared foundation.
+- **Spec-driven notebooks** are shared files: resolve conflicts with `nbdime`
+  (`nbdime config-git --enable` once per clone, then `nbdime mergetool`), never by hand-editing JSON.
 
 ## Shared analysis foundation
 
-[notebooks/01_eda/team-EDA.ipynb](notebooks/01_eda/team-EDA.ipynb) §1 holds the canonical copies
-of the helpers — originally from `EDA-robert.ipynb`, corrected in `EDA-simple-claude.ipynb`, and
-adopted by spec 03 as the one convention every consolidated notebook builds on
-(`risk-definition.ipynb` reuses them). Reuse these rather than re-deriving them:
+[team-EDA.ipynb](notebooks/01_eda/team-EDA.ipynb) §1 holds the canonical helpers — reuse, don't
+re-derive:
 
-- **`time_series`** — the shared hourly DataFrame, never `ts` (the name spec 03 standardises on).
-  `SERIES` names the eleven observation columns (eight measured / forecast series plus three
-  `cap_*` capacity columns); `DERIVED` names `renewables`, `year`, `month`, `hour`,
-  `dow`, `is_weekend`, `date`, `season`, `season_year`, `spans_gap`. The split matters: without it
-  `.corr()` and `.describe()` silently pull calendar columns in as though they were measurements.
-- **`_complete_periods(index, freq)`** — the edge rule, defined in exactly one place and shared by
-  both aggregation helpers.
-- **`period_mean(series, freq)`** / **`period_energy(...)`** — calendar-period aggregates that
-  **drop periods the data does not fully cover**. Note this is *not* "drop the first and last":
-  the record starts on a month boundary, so January 2019 is complete and only the trailing month
-  goes. A plain `.resample()` produces fake edge dips.
-- **`style_timeseries(ax, title, ylabel)`** — the shared chart style (no top/right spines, y-grid
-  only, year major ticks with quarterly minors, thousands-separated y labels). `ylabel` is
-  **required**, not defaulted.
-- **`seasonal_plot(df, y_value, title, ylabel)`** — month-on-x, year-as-hue seaborn line plot;
-  expects explicit `year` and `month` columns. It now **honours** `ylabel` (the original hard-coded
-  `"MWh"`).
-- **`YEARS`** — computed from the loaded data, never hardcoded. Everything year-dependent derives
-  from it.
+- **`time_series`** (never `ts`); **`SERIES`** = the eleven observation columns incl. `cap_*`,
+  **`DERIVED`** = calendar columns. Keep them apart so `.corr()` / `.describe()` don't pull in
+  calendar columns.
+- **`period_mean` / `period_energy`** (via `_complete_periods`) drop periods the data doesn't fully
+  cover — plain `.resample()` gives fake edge dips.
+- **`style_timeseries(ax, title, ylabel)`** (`ylabel` required), **`seasonal_plot(df, y_value,
+  title, ylabel)`**, **`YEARS`** (derived from the data, never hardcoded).
 
-Conventions that go with them, fixed in [01-Simple-EDA.md](.claude/specs/01-Simple-EDA.md)
-(Behaviour 11–21) and inherited by every later spec:
+Conventions (spec 01, Behaviour 11–21):
 
-- **Units:** average **MWh** for levels, **MWh/day** for energy, **MW/h** for ramps. An hourly unaggregated reading is a level — label it `MWh`; it is still energy, even for a single hourly observation. Ask the user before you use `"MWh per hour"`. `03-combined-cherry-picked-eda.md`'s Convention 4 relabels these as `MW` inside `team-EDA.ipynb` only — a notebook-local exception kept as-is, not a project-wide correction. New specs default to `MWh`.
-- **Weeks:** ISO, Monday start; the label side is stated wherever weeks are binned.
-- **Seasons:** meteorological, with `season_year = year + (month == 12)`.
-- **Descriptive slices** (tail hours, matched windows, longest runs) are computed inside their own plotting cell and never persisted onto `time_series`.
-- **Holidays:** one source of truth — `holidays.country_holidays("DE")`, no `subdiv`.
-- **Durations, not row counts:** any rule about a length of time (persistence, day completeness,
-  windows) is written as a duration and converted to an observation count from the *measured*
-  resolution, so a switch to SMARD's `quarterhour` data does not change its meaning. Introduced in
-  `risk-definition.ipynb` §3.1.
-
-Matplotlib is used directly for the styled plots; seaborn for the seasonal/hue plots.
-
-## Notebook merge conflicts
-
-`nbdime` is in the dev group. Enable it once per clone with `nbdime config-git --enable`, then
-resolve conflicts with `nbdime mergetool` instead of editing `.ipynb` JSON by hand.
+- **Units:** **MWh** for levels (an hourly reading is labelled `MWh`), **MWh/day** for energy,
+  **MW/h** for ramps. Ask before using "MWh per hour". `team-EDA.ipynb` uses `MW` as a local
+  exception only.
+- **Weeks:** ISO, Monday start. **Seasons:** meteorological, `season_year = year + (month == 12)`.
+- **Holidays:** `holidays.country_holidays("DE")`, no `subdiv`.
+- **Durations, not row counts:** time rules are written as durations and converted via the
+  measured resolution.
+- Descriptive slices stay inside their plotting cell, never persisted onto `time_series`.
+- Matplotlib for styled plots, seaborn for seasonal/hue plots.
