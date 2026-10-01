@@ -138,6 +138,7 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
 | 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
+| 08 Ensemble | Draft, not yet run → `ensemble-claude.ipynb`; combines the spec 06 model saves (weights chosen on the validation year only), no change to other notebooks |
 | 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
 | 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run* |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
