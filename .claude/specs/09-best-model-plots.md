@@ -21,7 +21,7 @@
 | §9.1 monthly SMARD bias table (also reads `err_grid_load`); Why / To try bullets | Every explanation backed by a number |
 | Minor: settings cell first, every candidate listed, rows check in the self-check, months column in the picks table | Clarity |
 | Dropped: hour-of-day MAE per tail | Too few hours per point; §4.3 covers it |
-| One ensemble pick (`ENSEMBLE_PICK`): the best `CANDIDATE_SPLIT` ensemble of spec 08 by the `overall` ranking, added to every category whether it qualifies or not (status printed in §2); rank `E` and `gap to best single` in the picks table; reads `data/models/ensemble_*.csv` and stops if their model rows differ from `model_scoreboard.csv` | Shows a one-size-fits-all candidate next to the specialists (team decision 2026-10-01) |
+| One ensemble pick (`ENSEMBLE_PICK`): the best `CANDIDATE_SPLIT` ensemble of spec 08 by the `overall` ranking, added to every category whether it qualifies or not (status printed in §2); rank `E` and `gap to best single` in the picks table; reads `data/models/ensemble_*.csv` and stops if their model rows differ from `model_scoreboard.csv`; §3.4 cost table per pick (tuning, test run, members, total) from `ensemble_scoreboard.csv` | Shows a one-size-fits-all candidate next to the specialists (team decision 2026-10-01) |
 
 ## Goal
 
