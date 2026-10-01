@@ -5,7 +5,8 @@
 - Deliverable: `notebooks/05_modeling/visualization-01-regression-best-models.ipynb` (renamed from
   `regression-best-models.ipynb`, then `regression-visualization-best-models.ipynb`). It writes no files.
 - Depends on: the exports of [06-regression-models.md](06-regression-models.md) (Behaviour 28), and
-  `data/metrics/smard_forecast_errors_hourly.csv` from [04-forecast-metrics.md](04-forecast-metrics.md).
+  `data/metrics/smard_forecast_errors_hourly.csv` from [04-forecast-metrics.md](04-forecast-metrics.md),
+  and the ensemble exports of [08-ensemble.md](08-ensemble.md).
 - Built one section at a time, with a team review of each section (`spec-run-section-loop` skill).
 - The body is the spec as run; the notebook follows the changes below.
 
@@ -20,6 +21,7 @@
 | §9.1 monthly SMARD bias table (also reads `err_grid_load`); Why / To try bullets | Every explanation backed by a number |
 | Minor: settings cell first, every candidate listed, rows check in the self-check, months column in the picks table | Clarity |
 | Dropped: hour-of-day MAE per tail | Too few hours per point; §4.3 covers it |
+| One ensemble pick (`ENSEMBLE_PICK`): the best `CANDIDATE_SPLIT` ensemble of spec 08 by the `overall` ranking, added to every category whether it qualifies or not (status printed in §2); rank `E` and `gap to best single` in the picks table; reads `data/models/ensemble_*.csv` and stops if their model rows differ from `model_scoreboard.csv`; §3.4 cost table per pick (tuning, test run, members, total) from `ensemble_scoreboard.csv` | Shows a one-size-fits-all candidate next to the specialists (team decision 2026-10-01) |
 
 ## Goal
 
