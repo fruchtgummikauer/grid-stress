@@ -1,6 +1,8 @@
 # 08 — Ensemble: Combining the Regression Models
 
-- Status: **draft, not yet run.** Updated 2026-09-30 for spec 06's model saves and new defaults.
+- Status: run 2026-10-01 → `notebooks/05_modeling/ensemble-claude.ipynb` (reference), built section by
+  section with team review (`spec-run-section-loop`). Updated 2026-09-30 for spec 06's model saves and
+  new defaults; Behaviour 7 changed during the run (spec 09 / 10 diagnostics, team decision).
 - Branch: `feature/*` off `main` (drafted on `feature/Ensemble-Forecast-Combination`)
 - Deliverable: `notebooks/05_modeling/ensemble-claude.ipynb` (reference, `-claude` suffix until the
   team adopts it), plus three optional artifacts in `data/models/` (Behaviours 20–21):
@@ -91,8 +93,8 @@ Units as in spec 06: forecasts and errors in `MWh`, weights dimensionless, skill
 - `sarimax_fourier` as a default member: it is off in spec 06 and has no save. It joins
   automatically once a team member saves it.
 - The `-magc` notebook's models: that notebook has no saves.
-- Risk flags on the ensemble forecast, classification metrics (see parked
-  [04.3-risk-label-link.md](04.3-risk-label-link.md)).
+- Risk flags as an input to any weight. They appear only as the member diagnostic of Behaviour 7,
+  on the members, not on the ensemble.
 - Significance tests between forecasts.
 - MLflow, `modeling/`, new dependencies. `joblib`, scipy (`linprog`) and scikit-learn (`Ridge`) are
   already runtime dependencies.
@@ -157,10 +159,25 @@ Units as in spec 06: forecasts and errors in `MWh`, weights dimensionless, skill
    reading plainly: a combination can only gain where errors are not near-identical. The four
    boosters share their features, so high correlations between them are expected. `linear_direct`
    and `random_forest_hybrid` are the likelier sources of diversity.
-7. **Who wins where.** Validation MAE per member per level regime (Behaviour 11's bins, by the
-   members' mean forecast) and per season. Print the same table for the test year, marked
-   **"stability check only — used for no choice"**. State per bin whether the validation winner is
-   also the test winner.
+7. **Who wins where**, built on the team's two visualization notebooks (team decision during the
+   run, 2026-10-01):
+   - **Spec 09's categories and pick rule** (`visualization-01-regression-best-models.ipynb` §2):
+     `overall`, `ordinary`, `below_zero`, `low_extreme`, `high_extreme`; a member qualifies in a
+     bin when it beats SMARD by actual **and** by forecast with a forecast share of at least 0.5.
+     Spec 09 picks on the test year; here the rule runs on the **validation** year (the choice)
+     and on the test year, marked **"stability check only — used for no choice"**, with a column
+     saying whether rank 1 is the same. Bin edges are the window's own P1 / P25 / P75 / P99 of the
+     actual, plus 0 MWh.
+   - **Spec 09's plots**, validation next to test: monthly skill vs SMARD, skill by hour of day,
+     error range per bin (middle 80 %, bias diamond).
+   - **Spec 10's risk flags** (`visualization-02-classification-risk-labels.ipynb` §2–3) on every
+     member: the exported thresholds of `risk-definition.ipynb` (high `rolling`, low `rolling`, low
+     `zero`; rules `any` and `3h`), recall and precision per member and window, with spec 10's rule
+     functions copied and a reproduction check against the label files. A **diagnostic only**: the
+     flags show which member catches which risk days, they never feed a weight.
+
+   The per-regime table by the members' mean forecast moves to the combination methods
+   (Behaviour 11), where the regimes are defined.
 8. **Best single member**: per split method, the registry member with the lowest **validation**
    MAE. It is the reference every ensemble has to beat (Behaviour 17). It is chosen on validation,
    never on test, and printed together with the member that happens to be best on test. On the
@@ -432,7 +449,8 @@ Derived in this spec:
 - Choosing members, weights or methods by test-year results, or dropping a member by hand because
   of them.
 - Weather data, reBAP, MLflow, `modeling/`, new dependencies.
-- Risk flags and classification metrics on the ensemble.
+- Risk flags on the ensemble forecast, and risk flags as an input to a weight (Behaviour 7 uses
+  them on the members as a diagnostic only).
 
 ## Open questions
 

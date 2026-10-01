@@ -62,6 +62,7 @@ notebooks/
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
+    ensemble-claude.ipynb           # reference: spec 08, combines the spec 06 model saves
     visualization-01-regression-best-models.ipynb  # spec 09: top picks per category vs SMARD
     visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
 ```
@@ -87,6 +88,7 @@ re-running their producer.
 | `data/metrics/smard_*.csv` | `forecast-metrics-claude.ipynb` (spec 04) | plain CSV |
 | `data/models/model_*.csv` | `regression-models-claude.ipynb` (spec 06), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
 | `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
+| `data/models/ensemble_*.csv` | `ensemble-claude.ipynb` (spec 08), if `EXPORT_ENABLED` (default on) | plain CSV: hourly forecasts + bands, long scoreboard, weights |
 | `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2), only if `EXPORT_ENABLED` | plain CSV, long format |
 | `data/features/residual_load_features{,_cutoff}.csv` | the two feature-engineering notebooks | plain CSV |
 
@@ -138,7 +140,7 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
 | 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
-| 08 Ensemble | Draft, not yet run → `ensemble-claude.ipynb`; combines the spec 06 model saves (weights chosen on the validation year only), no change to other notebooks |
+| 08 Ensemble | Run → `ensemble-claude.ipynb` (reference) + three `data/models/ensemble_*.csv`; reads the spec 06 model saves (no refit), weights / edges / windows chosen on the validation year only, bands from out-of-fold validation forecasts; member diagnostic uses spec 09's pick rule and spec 10's risk flags; about 4 min |
 | 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
 | 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run* |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
