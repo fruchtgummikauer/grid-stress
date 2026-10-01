@@ -60,216 +60,25 @@ notebooks/
     feature_library/                       # static HTML docs of the features
     Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # do not read yet (absolute paths, not cleaned up)
   05_modeling/
-    regression-models-claude.ipynb  # reference: spec 06 output, refactored by the team
-    regression-models-magc.ipynb    # spec 06.2 output: a copy of the -claude notebook with 06.1's features
-    grid-load-models-magc.ipynb     # no spec: the refactored -claude notebook retargeted to grid_load, plus §10 residual load
-```
-
-`grid-load-models-magc.ipynb` is a team member's experiment (not adopted). It copies the refactored
-`regression-models-claude.ipynb` cell for cell, but forecasts `grid_load` (`TARGET`) and scores it
-against SMARD's `fc_grid_load` (`BENCHMARK`), which is **no model's input** (asserted). The
-`smard_forecast_grid_load` group and `err_grid_load_recent` are gone, lags and rolling stats are
-built from `grid_load` (`gl_*`), and the hybrid's linear stage regresses on the `DAY−2` / `DAY−7`
-load lags plus a trend (median-filled for the spring-DST gap). `fc_gen_wind_solar` is still a
-switchable input. §10 converts each load forecast into a residual-load forecast
-(`load − fc_gen_wind_solar`, the way SMARD builds `fc_residual_load`) and scores it against
-`fc_residual_load`. Its §5.5 shared-first-fit check allows 1e-6 MWh, because the hybrid's linear stage
-rounds differently for different batch sizes. Its conclusions (§9.2, §10.5) are one member's
-experiment, not project facts.
-
-Outside `notebooks/`:
-
-- `streamlit/` — the first Streamlit app (Home / EDA / Model), built from
-  [Streamlit-draft.md](.claude/specs/Streamlit-draft.md): `streamlit_app.py` (Home),
-  `pages/1_EDA.py`, `pages/2_Model.py`, `data_loading.py` (loading ported from `team-EDA.ipynb` §1,
-  which stays the source of truth) and `viz_helpers.py`. Chart styling follows the `chart-style`
-  skill. There is no `make` target for it. **Known issue:** the app imports its own modules as
-  `streamlit.data_loading` / `streamlit.viz_helpers`, but the installed `streamlit` package
-  shadows the folder, so `import streamlit.data_loading` raises `ModuleNotFoundError` (checked
-  2026-09-29).
-- `images/` — MLflow screenshots for the template sections of [README.md](README.md).
-- `models/` — gitignored output folder of the template's `make train`, kept by a `.gitkeep`.
-
-`Hari_Gridstress_feature_engineering_baselines_metrics.ipynb` is a per-member experiment that has not
-been cleaned up to the notebook conventions yet: it reads `smard_hourly_2019_2026-09-10.csv` from an
-absolute, machine-specific path instead of `data/smard.csv`. Do not read it or draw on it until the
-team has cleaned it up.
-
-## Data pipeline
-
-**`data/` is gitignored** (`data/*.csv`, `data/metrics/*.csv`, `data/risk_classification/*.csv`,
-`data/models/*.csv`, `data/features/*.csv`, `models/*`), so nothing in it comes with a clone.
-`data/*.csv` does not reach into subfolders, which is why `data/metrics/`,
-`data/risk_classification/`, `data/models/` and `data/features/` each have their own rule; all five
-folders are kept in git by an empty `.gitkeep`.
-[notebooks/API-connection.ipynb](notebooks/API-connection.ipynb) regenerates both raw datasets and
-is the single source of each. The risk-label files, the SMARD forecast-error files, the feature
-files and our own model files are derived from `smard.csv` by separate notebooks (see below).
-
-### `data/smard.csv` — the core dataset (Part 1)
-
-- SMARD API (`https://www.smard.de/app/chart_data/...`), no API key. Docs: <https://smard.api.bund.dev/>
-- The API serves only **whole weekly packages** — `fetch()` lists available packages from the
-  index endpoint, downloads the overlapping ones, and trims to the requested range.
-- Eleven series selected by numeric filter ID in the `FILTERS` dict: grid load, residual load,
-  wind on/offshore, solar, three SMARD day-ahead forecasts (`Forecast Wind + Solar`,
-  `Forecast Grid Load`, `Forecast Residual Load` — the last is our benchmark to beat), and
-  **installed capacity** for the same three sources (`Capacity Wind Offshore`, `Capacity Wind
-  Onshore`, `Capacity Solar` → `cap_wind_off`, `cap_wind_on`, `cap_solar`). Region `DE`, hourly
-  resolution, timestamps converted to `Europe/Berlin`.
-- The capacity columns are a **yearly step value repeated on every hour** (one distinct value per
-  year) — MW of installed capacity, not a measurement. They are in `SERIES`, so `.describe()` and
-  `.corr()` over `SERIES` now include three near-constant columns.
-- Written in **German Excel CSV format**: `sep=";"`, `decimal=","`, `utf-8-sig`. Every consumer
-  must therefore read with `pd.read_csv(..., delimiter=";", encoding="utf-8-sig")` and convert the
-  numeric columns (`str.replace(",", ".")` → `float`).
-
-Current extent: **67,336 hourly rows, 2019-01-01 00:00 → 2026-09-06 23:00**. Treat this as a
-snapshot, not a constant — the fetch has already been widened back to 2019 once (it previously
-started at 2022-01-01), and the end moves with every re-fetch, so **no literal calendar year
-belongs in notebook code**; derive year lists, anchors and colour maps from the loaded data (see
-`YEARS` below). Re-fetching is not neutral for anything computed over the whole record: the 2019
-backfill shifted whole-record quantiles of `residual_load`, which is why
-[02-Risk-Definition.md](.claude/specs/02-Risk-Definition.md) refuses to define a label against
-them.
-
-Known data characteristic established in EDA: **one gap per spring DST switch** — 8 in the current
-extent, one per year covered, so the count grows with the record and must never be hardcoded. The
-missing local hour is 02:00; the first row after each jump is 03:00, so both descriptions appear in
-the specs and mean the same thing. The autumn fold is silently collapsed by SMARD rather than
-duplicated, so those days carry 24 rows and no gap marker.
-
-### `data/rebap.csv` — cost data (Part 2)
-
-A **second, unrelated API**: netztransparenz.de reBAP / NrvSaldo (*regelzonenübergreifender
-einheitlicher Bilanzausgleichsenergiepreis*, the uniform cross-control-area imbalance price).
-Differences from SMARD: it needs **OAuth2 credentials**, returns semicolon-separated CSV text
-rather than JSON, and takes UTC timestamps. Credentials come from a gitignored `.env`
-(`client_id` / `client_secret`) — never paste them into the notebook. The whole Part 2 section
-skips cleanly when credentials are absent.
-
-**Kept out of shared work.** reBAP is reserved for cost calculation *after* modelling: no team or
-spec-driven EDA, no model features. Personal `EDA-<name>` exploration is fine
-(`EDA-rebap-magc.ipynb`).
-
-### `data/risk_classification/risk_labels_{daily,hourly}.csv` — risk labels (derived)
-
-Not from an API: written by
-[notebooks/03_risk_classification/risk-definition.ipynb](notebooks/03_risk_classification/risk-definition.ipynb)
-from `data/smard.csv`, and regenerated by re-running that notebook.
-
-- **Plain CSV** (`sep=","`, `decimal="."`, UTF-8) — a bare `pd.read_csv` works, unlike the two raw
-  files.
-- Naming: `{direction}_threshold_{basis}`, `{direction}_risk_{basis}_{rule}`,
-  `{direction}_range_{start,end}_{basis}_{rule}`. Directions `high` / `low`; bases `rolling`,
-  `zero` (low only), `static`; rules `any`, `3h`. Daily also carries the day's max/min and their
-  hours, `observations` and `day_complete`.
-- Hourly holds `residual_load` plus the crossing flags per direction × basis only — no threshold
-  values and no `3h` column (join the daily file on `date` for those).
-- **An empty flag means "not evaluable"** — inside the first 365 days (`rolling` has no full
-  trailing year) or a day with fewer than 23/24 observations. It never means "not at risk"; never
-  `fillna(False)`.
-- Thresholds are exported so the identical flag can be applied to `fc_residual_load` by joining
-  on `date` — planned in the parked sub-spec
-  [04.3-risk-label-link.md](.claude/specs/04.3-risk-label-link.md), not in spec 04 itself. Never
-  recompute them against another series — the comparison would then measure the thresholds, not
-  the forecast.
-
-### `data/metrics/smard_*.csv` — SMARD forecast errors (derived)
-
-Not from an API: written by
-[notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb](notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb)
-(spec 04) from `data/smard.csv`, and regenerated by re-running that notebook. The `smard_` prefix
-marks them as the baseline to beat; our own model's files live in `data/models/` (below).
-
-- `smard_forecast_errors_hourly.csv` — one row per hour: actual, forecast and `err_*`
-  (`forecast − actual`, positive = over-forecast) for residual load, grid load and wind + solar.
-  Missing forecasts stay empty (2020-01-31 in the current snapshot), never interpolated. The
-  source of truth: any evaluation window, including the modelling spec's test window, is re-scored
-  from this file.
-- `smard_forecast_errors_daily.csv` — one row per calendar day: per-pair MAE / RMSE / bias /
-  `hour_count`, plus residual load's day max/min values, timestamps, value errors and timing
-  offsets. The timestamps are plain local time (like the hourly file), so the two join directly;
-  use `offset_max_h` / `offset_min_h` rather than subtracting timestamps, which is 1 h off on DST
-  days.
-- `smard_benchmark_metrics.csv` — long format (`level`, `period`, `pair`, `metric`, `value`,
-  `hour_count`) for the cascade above day level (`full`, `trailing_365`, `year`, `month`) plus
-  the `season` slice. Partial years and months are included but not marked — read them through
-  `hour_count`. A metric that does not apply has no row: the capacity-normalised error exists only
-  for wind + solar at `trailing_365` and `year`.
-- Plain CSV (`sep=","`, `decimal="."`, UTF-8), like the risk labels.
-
-### `data/models/model_*.csv` — our own forecasts and scoreboard (derived)
-
-Not from an API: written by
-[notebooks/05_modeling/regression-models-claude.ipynb](notebooks/05_modeling/regression-models-claude.ipynb)
-(spec 06) from `data/smard.csv` and `data/metrics/smard_forecast_errors_hourly.csv`. The notebook
-writes them **only when its `EXPORT_ENABLED` toggle is on** (default off, while the team
-experiments); both frames are always built in memory. The folder itself exists and is not created
-by the notebook.
-
-- `model_forecast_errors_hourly.csv` — long format, one row per test hour × model ×
-  split method, for the registry rows and seasonal naive: `timestamp`, `model`, `split_method`,
-  `residual_load`, `forecast`, `lower`, `upper`, `err_residual_load`. SMARD is **not** in this file
-  (its hourly values are in `data/metrics/smard_forecast_errors_hourly.csv`); join the two on
-  `timestamp` (plain local time). A registry row without a single forecast (a failed static fit)
-  still has its test hours here, left empty.
-- `model_scoreboard.csv` — long format (`model`, `split_method`, `table`, `metric`, `value`,
-  `count`), including the SMARD and seasonal-naive rows (`split_method = "none"`). Every value is
-  computed on the common test hours. Metrics per `table`:
-  - `accuracy`: `MAE`, `RMSE`, `bias`, `skill_pct` (`count` = hours), `months_beating_smard`
-    (`value` = months won, `count` = full calendar months), `fit_seconds` (`count` = fits)
-  - `extremes`: `{MAE,bias}_{low_extreme,ordinary,high_extreme}_by_{actual,forecast}` and
-    `skill_pct_{low_extreme,ordinary,high_extreme}_by_actual` (`count` = hours in the bin;
-    `low_extreme` ≤ P1, `ordinary` P25–P75, `high_extreme` > P99 of the test window's actual),
-    `{MAE,bias,skill_pct}_day_{max,min}` (`count` = days)
-  - `intervals`: `coverage_pct`, `mean_width`
-
-  A metric that does not apply has no row: SMARD has no skill, months, fit-time or interval rows,
-  seasonal naive no fit time, the forecast-binned extremes have no skill (each row fills its bins
-  with different hours), and a row without forecasts has no rows at all.
-- Plain CSV (`sep=","`, `decimal="."`, UTF-8), like the other derived files.
-
-`model_magc_forecast_errors_hourly.csv` and `model_magc_scoreboard.csv` are the same two exports
-from [regression-models-magc.ipynb](notebooks/05_modeling/regression-models-magc.ipynb) (spec
-06.2), behind that notebook's own `EXPORT_ENABLED` (default off). It was copied from the
-`-claude` notebook **before** the refactor, so its extremes metrics still use the old bin names
-`bottom` / `ordinary` / `top`, without the extremes skill metrics. Don't compare its scoreboard
-with the `-claude` one by metric name alone.
-
-`model_load_forecast_errors_hourly.csv` and `model_load_scoreboard.csv` are the same two exports
-from [grid-load-models-magc.ipynb](notebooks/05_modeling/grid-load-models-magc.ipynb), behind its
-own `EXPORT_ENABLED` (default off), for **grid load**: the hourly file has `grid_load` and
-`err_grid_load` instead of the residual-load columns, and the scoreboard's SMARD row is
-`fc_grid_load`. The §10 residual-load comparison is in memory only, not exported.
-
-### `data/features/residual_load_features{,_cutoff}.csv` — feature tables (derived)
-
-Not from an API: written from `data/smard.csv` (and, for the cutoff file,
-`data/metrics/smard_forecast_errors_hourly.csv`) by the two feature-engineering notebooks, which
-create `data/features/` if it is missing. Plain CSV (`sep=","`, `decimal="."`, UTF-8), one row per
-hour of the record, indexed by `timestamp`.
-
-- `residual_load_features.csv` —
-  [feature-engineering-magc.ipynb](notebooks/04_feature_engineering/feature-engineering-magc.ipynb)
-  (spec 05): features built for a forecast origin at **00:00 on `DAY`**. Under spec 06's 18:00
-  issue time and its availability cutoff, some of them read hours not yet published, so they are
-  **not** leakage-safe for the regression models.
-- `residual_load_features_cutoff.csv` —
-  [feature-engineering-cutoff-magc.ipynb](notebooks/04_feature_engineering/feature-engineering-cutoff-magc.ipynb)
-  (spec 06.1): the same feature definitions rebuilt at spec 06's availability cutoff; `timestamp`,
-  `cutoff` and 16 feature columns. `regression-models-magc.ipynb` does not read this file: it
-  rebuilds the same definitions inside its own feature builder.
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
+    grid-load-models-magc.ipynb     # no spec: the -claude notebook retargeted to grid_load (below)
     ensemble-claude.ipynb           # reference: spec 08, combines the spec 06 model saves
-    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category vs SMARD
+    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category + one ensemble pick vs SMARD
     visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
 ```
 
-- `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md) (Home / EDA /
-  Model); chart styling via the `chart-style` skill; no `make` target. **Known issue:** imports like
-  `streamlit.data_loading` are shadowed by the installed `streamlit` package → `ModuleNotFoundError`.
+`grid-load-models-magc.ipynb` is one member's experiment (not adopted; its conclusions are not project
+facts): the refactored `-claude` notebook forecasting `grid_load`, scored against SMARD's
+`fc_grid_load`, which is **no model's input** (asserted). Its §10 turns each load forecast into a
+residual-load forecast (`load − fc_gen_wind_solar`) scored against `fc_residual_load`.
+
+Outside `notebooks/`:
+
+- `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md); loading ported from
+  `team-EDA.ipynb` §1 (still the source of truth); chart styling via the `chart-style` skill; no
+  `make` target. **Known issue:** imports like `streamlit.data_loading` are shadowed by the installed
+  `streamlit` package → `ModuleNotFoundError`.
 - `images/` — README screenshots. `models/` — gitignored template output.
 
 ## Data
@@ -290,6 +99,7 @@ re-running their producer.
 | `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
 | `data/models/ensemble_*.csv` | `ensemble-claude.ipynb` (spec 08), if `EXPORT_ENABLED` (default on) | plain CSV: hourly forecasts + bands, long scoreboard, weights |
 | `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2), only if `EXPORT_ENABLED` | plain CSV, long format |
+| `data/models/model_load_*.csv` | `grid-load-models-magc.ipynb`, only if `EXPORT_ENABLED` | as `model_*.csv`, for `grid_load` (SMARD row: `fc_grid_load`) |
 | `data/features/residual_load_features{,_cutoff}.csv` | the two feature-engineering notebooks | plain CSV |
 
 Column layouts are defined in the producing spec. Gotchas:
@@ -313,8 +123,10 @@ Column layouts are defined in the producing spec. Gotchas:
 - **Model exports:** SMARD's hourly values are not in `model_forecast_errors_hourly.csv` — join
   `data/metrics/` on `timestamp`. The `-magc` scoreboard predates the refactor (bins `bottom` /
   `ordinary` / `top`, no `below_zero`, 24-month window) — don't compare it with the `-claude` one by
-  metric name. `visualization-01-regression-best-models.ipynb` reads only the `-claude` exports; its
-  self-check stops when they and `data/metrics/` come from different runs.
+  metric name. Bin edges are quantiles of the actual over **all** test hours (spec 06, ensemble
+  too). `visualization-01-regression-best-models.ipynb` reads the `-claude` and `ensemble_*`
+  exports; it stops when the ensemble's model rows differ from `model_scoreboard.csv`, or when the
+  exports and `data/metrics/` come from different runs.
 - **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops
   after a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle —
   load team saves only.
