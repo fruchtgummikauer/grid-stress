@@ -87,7 +87,20 @@ notebooks/
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06 output, refactored by the team
     regression-models-magc.ipynb    # spec 06.2 output: a copy of the -claude notebook with 06.1's features
+    grid-load-models-magc.ipynb     # no spec: the refactored -claude notebook retargeted to grid_load, plus §10 residual load
 ```
+
+`grid-load-models-magc.ipynb` is a team member's experiment (not adopted). It copies the refactored
+`regression-models-claude.ipynb` cell for cell, but forecasts `grid_load` (`TARGET`) and scores it
+against SMARD's `fc_grid_load` (`BENCHMARK`), which is **no model's input** (asserted). The
+`smard_forecast_grid_load` group and `err_grid_load_recent` are gone, lags and rolling stats are
+built from `grid_load` (`gl_*`), and the hybrid's linear stage regresses on the `DAY−2` / `DAY−7`
+load lags plus a trend (median-filled for the spring-DST gap). `fc_gen_wind_solar` is still a
+switchable input. §10 converts each load forecast into a residual-load forecast
+(`load − fc_gen_wind_solar`, the way SMARD builds `fc_residual_load`) and scores it against
+`fc_residual_load`. Its §5.5 shared-first-fit check allows 1e-6 MWh, because the hybrid's linear stage
+rounds differently for different batch sizes. Its conclusions (§9.2, §10.5) are one member's
+experiment, not project facts.
 
 Outside `notebooks/`:
 
@@ -248,6 +261,12 @@ from [regression-models-magc.ipynb](notebooks/05_modeling/regression-models-magc
 `-claude` notebook **before** the refactor, so its extremes metrics still use the old bin names
 `bottom` / `ordinary` / `top`, without the extremes skill metrics. Don't compare its scoreboard
 with the `-claude` one by metric name alone.
+
+`model_load_forecast_errors_hourly.csv` and `model_load_scoreboard.csv` are the same two exports
+from [grid-load-models-magc.ipynb](notebooks/05_modeling/grid-load-models-magc.ipynb), behind its
+own `EXPORT_ENABLED` (default off), for **grid load**: the hourly file has `grid_load` and
+`err_grid_load` instead of the residual-load columns, and the scoreboard's SMARD row is
+`fc_grid_load`. The §10 residual-load comparison is in memory only, not exported.
 
 ### `data/features/residual_load_features{,_cutoff}.csv` — feature tables (derived)
 
