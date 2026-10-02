@@ -67,6 +67,7 @@ notebooks/
     ensemble-claude.ipynb           # reference: spec 08, combines the spec 06 model saves
     visualization-01-regression-best-models.ipynb  # spec 09: top picks per category + one ensemble pick vs SMARD
     visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
+    visualization-03-rebap-cost.ipynb  # spec 11: the picks' advantage over SMARD priced at the reBAP
 ```
 
 `grid-load-models-magc.ipynb` is one member's experiment (not adopted; its conclusions are not project
@@ -100,6 +101,7 @@ re-running their producer.
 | `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
 | `data/models/ensemble_*.csv` | `ensemble-claude.ipynb` (spec 08), if `EXPORT_ENABLED` (default on) | plain CSV: hourly forecasts + bands, long scoreboard, weights |
 | `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2), only if `EXPORT_ENABLED` | plain CSV, long format |
+| `data/models/model_rebap_cost_hourly.csv` | `visualization-03-rebap-cost.ipynb` (spec 11), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
 | `data/models/model_load_*.csv` | `grid-load-models-magc.ipynb`, only if `EXPORT_ENABLED` | as `model_*.csv`, for `grid_load` (SMARD row: `fc_grid_load`) |
 | `data/features/residual_load_features{,_cutoff}.csv` | the two feature-engineering notebooks | plain CSV |
 
@@ -113,7 +115,8 @@ Column layouts are defined in the producing spec. Gotchas:
 - **DST:** one gap per spring switch (missing 02:00, next row 03:00) — the count grows with the
   record, never hardcode it. Autumn days have 24 rows, no marker.
 - **reBAP stays out of shared work** (no team EDA, no model features) — reserved for cost
-  calculation after modelling. Never paste credentials into a notebook.
+  calculation after modelling (spec 11). Never paste credentials into a notebook. `rebap.csv`
+  repeats autumn 02:00–02:45 (CEST, then CET): keep the last to match SMARD's 02:00 row.
 - **Risk labels: an empty flag means "not evaluable"** (first 365 days, incomplete day), never "not
   at risk" — never `fillna(False)`. Apply the exported thresholds to other series by joining on
   `date`; never recompute them against another series. Same rule for `model_risk_labels_*.csv`,
@@ -156,6 +159,7 @@ spec — differences are team edits. **Always ask before editing any spec output
 | 08 Ensemble | Run → `ensemble-claude.ipynb` (reference) + three `data/models/ensemble_*.csv`; reads the spec 06 model saves (no refit), weights / edges / windows chosen on the validation year only, bands from out-of-fold validation forecasts; member diagnostic uses spec 09's pick rule and spec 10's risk flags; about 4 min |
 | 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
 | 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run*; one pick per direction vs SMARD (`PICKS`, set by hand from spec 09 rank 1; an ensemble key only if it beats that pick, never added on top) |
+| 11 reBAP cost | Run → `visualization-03-rebap-cost.ipynb` (no suffix) + its cost file; `PICKS` by hand as in spec 10; team changes under *Changes during the run* |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
 Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent
