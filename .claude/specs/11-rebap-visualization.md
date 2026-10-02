@@ -1,6 +1,6 @@
 # 11 — reBAP Cost: What Our Picks Save or Cost Against SMARD
 
-- Status: draft 2026-10-02. Branch: `feature/rebap-visualization`.
+- Status: run 2026-10-02. Branch: `feature/rebap-visualization`.
 - Deliverable: `notebooks/05_modeling/visualization-03-rebap-cost.ipynb` (no suffix). It writes one
   cost file (Behaviour 15).
 - Depends on: the exports of [06](06-regression-models.md) (Behaviour 28) and [08](08-ensemble.md),
@@ -9,6 +9,22 @@
   (`API-connection.ipynb` Part 2).
 - This is the cost calculation CLAUDE.md reserves reBAP for. reBAP never becomes a model feature.
 - Built one section at a time with a team review (`spec-run-section-loop` skill).
+- The body is the spec as run; the notebook follows the changes below.
+
+## Changes during the run
+
+| Change | Why |
+|---|---|
+| Common hours follow spec 09: an actual, `fc_residual_load` and a forecast from every exported row, `seasonal_naive` included (8,758 h on the 2026-10-02 files) | With Behaviour 3's rows only (8,759 h) the scoreboard self-check fails: `seasonal_naive` has no forecast for 2026-04-05 02:00, so spec 06 scores on one hour less |
+| Money-table rows also take a `PICKS` value outside the `SPLIT` registry and `ENSEMBLE_PICK` (an ensemble other than `ENSEMBLE_PICK`) | Each group's pick must be in the table to be marked |
+| §2.1 also prints each category's hours per price band | Shows at a glance how many of a tail's hours are expensive |
+| `PRICE_COLOR`: a slate-indigo ramp built from `len(PRICE_BANDS)`, asserted against `STYLE` and `TAIL_COLOR`; drawn as x-axis chips in `price_bands` and as the top-band line in `price_scatter` | Bands stay readable without taking a model or tail colour |
+| Plot 12: the three labelled hours also carry their M€ | The size of each jump reads without the axis |
+| `top_hours`: the hour labels sit on the y axis, the M€ at the bar end; two-line titles where one line overflowed | Long labels never cover a bar |
+| Helpers `count_tile`, `signed_ticks` and `plain_zero`: tick decimals follow the axis span, a label that rounds to zero loses its sign, wider `top_hours` margins, `price_scatter` x limit 2.5 × max(dearest hour, top-band edge) | `low_extreme`'s sub-M€ values broke the formats; the edge label and the dearest dot were clipped |
+| Findings: no "calm year" claim; the window's mean \|reBAP\| is given and calmness is called unmeasured | reBAP outside the test window is out of scope, so the notebook cannot show it |
+| Findings §8.2: a plain-language bullet on why the figures are not money a TSO or citizen paid | For a non-technical audience |
+| Findings §8.3: a worked hour, chosen by rule (the overall pick's largest \|saved_h\|), with its quarter-hour table and a signed settlement marked *illustration only* | Shows the audience why the absolute price is used; the signed figure enters no table, plot or export |
 
 ## Decisions taken before drafting (2026-10-02)
 
