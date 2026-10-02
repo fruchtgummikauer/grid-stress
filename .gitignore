@@ -134,6 +134,7 @@ data/metrics/*.csv
 data/risk_classification/*.csv
 data/models/*.csv
 data/features/*.csv
+data/films/*.mp4
 models/*.sav
 mlruns
 models/*

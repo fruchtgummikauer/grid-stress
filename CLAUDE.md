@@ -63,6 +63,7 @@ notebooks/
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
     grid-load-models-magc.ipynb     # no spec: the -claude notebook retargeted to grid_load (below)
+    regression-models-hari.ipynb    # Hari's personal exploration (not adopted); fixed to run on the repo's data/smard.csv
     ensemble-claude.ipynb           # reference: spec 08, combines the spec 06 model saves
     visualization-01-regression-best-models.ipynb  # spec 09: top picks per category + one ensemble pick vs SMARD
     visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD

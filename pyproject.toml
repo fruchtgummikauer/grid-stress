@@ -33,6 +33,8 @@ dev = [
     "nbdime",
     "missingno>=0.5.2",
     "gh>=0.0.4",
+    "imageio-ffmpeg>=0.6.0",
+    "torch>=2.14.1",
 ]
 
 [tool.uv]
