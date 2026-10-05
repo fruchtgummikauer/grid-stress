@@ -11,7 +11,9 @@ Capstone project forecasting **German power grid load & stability** from SMARD d
 - Day-ahead forecast of **`residual_load`** from installed capacity, generation and consumption.
 - Risk cases are its extremes: **high** (imports, tight margins) and **negative** (renewable
   oversupply, negative prices, downward redispatch) — days at risk of TSO intervention.
-- SMARD publishes its own `Forecast Residual Load`: the benchmark our models must beat.
+- Benchmark to beat: SMARD's own `Forecast Residual Load`. Our models post-process SMARD's
+  component forecasts (`fc_grid_load`, `fc_gen_wind_solar`; Model Output Statistics), so the claim
+  is "we reduce SMARD's error by X %", not "we forecast better than the TSOs" (spec 06).
 
 **Scope:** generation features are Wind + Solar only (the only sources with published day-ahead
 forecasts, and the largest variable ones); all other generation (biomass, coal, water, …) is out.
@@ -33,14 +35,13 @@ Dependencies: `uv add <pkg>` (runtime), `uv add --group dev <pkg>` (notebook/too
 
 ## Repository layout
 
-Started from the neuefische `ds-modeling-template`. **`modeling/train.py`, `predict.py`,
-`feature_engineering.py`, `notebooks/EDA-and-modeling.ipynb` and the MLflow parts of README.md are
-template code on a coffee dataset** — reference for the MLflow pattern only (`make train` /
-`make predict` belong to it). Real: `modeling/config.py` (MLflow URI from gitignored `.mlflow_uri`
-or `MLFLOW_URI`; `EXPERIMENT_NAME` still the template default) and the root `__init__.py`
-placeholder for future productionized code.
+Started from the neuefische `ds-modeling-template`: `modeling/{train,predict,feature_engineering}.py`,
+`notebooks/EDA-and-modeling.ipynb`, `make train` / `make predict` and README's MLflow parts are
+template code on a coffee dataset (MLflow pattern reference only). Real: `modeling/config.py`
+(MLflow URI from gitignored `.mlflow_uri` or `MLFLOW_URI`; `EXPERIMENT_NAME` still the template
+default) and the root `__init__.py` placeholder.
 
-```
+```text
 notebooks/
   API-connection.ipynb          # data pipeline — both raw datasets
   EDA-and-modeling.ipynb        # template leftover - ignore
@@ -56,118 +57,120 @@ notebooks/
   04_feature_engineering/
     feature-engineering-magc.ipynb         # spec 05 (origin 00:00 on DAY)
     feature-engineering-cutoff-magc.ipynb  # spec 06.1 (spec 05 features at spec 06's cutoff)
-    data-leakage-demo-claude.ipynb         # reference, no spec: why fc_grid_load + fc_gen_wind_solar leak
+    data-leakage-demo-claude.ipynb         # reference: both component forecasts reproduce fc_residual_load (spec 05 dropped fc_grid_load; spec 06 uses both, not leakage)
     feature_library/                       # static HTML docs of the features
     Hari_Gridstress_feature_engineering_baselines_metrics.ipynb  # do not read yet (absolute paths, not cleaned up)
   05_modeling/
     regression-models-claude.ipynb  # reference: spec 06, refactored and extended by the team
     regression-models-magc.ipynb    # spec 06.2: pre-refactor copy of -claude with 06.1's features
-    grid-load-models-magc.ipynb     # no spec: the -claude notebook retargeted to grid_load (below)
-    regression-models-hari.ipynb    # Hari's personal exploration (not adopted); fixed to run on the repo's data/smard.csv
+    grid-load-models-magc.ipynb     # exploration: -claude retargeted to grid_load, vs fc_grid_load (no model's input, asserted); §10 → residual load vs fc_residual_load
+    regression-models-hari.ipynb    # exploration: Hari's, fixed to run on data/smard.csv
     ensemble-claude.ipynb           # reference: spec 08, combines the spec 06 model saves
-    visualization-01-regression-best-models.ipynb  # spec 09: top picks per category + one ensemble pick vs SMARD
+    visualization-01-regression-best-models.ipynb      # spec 09: top picks per category + one ensemble pick vs SMARD
     visualization-02-classification-risk-labels.ipynb  # spec 10: spec 02's risk flags on the picks vs SMARD
-    visualization-03-rebap-cost.ipynb  # spec 11: the picks' advantage over SMARD priced at the reBAP
+    visualization-03-rebap-cost.ipynb                  # spec 11: the picks' advantage over SMARD priced at the reBAP
 ```
 
-`grid-load-models-magc.ipynb` is one member's experiment (not adopted; its conclusions are not project
-facts): the refactored `-claude` notebook forecasting `grid_load`, scored against SMARD's
-`fc_grid_load`, which is **no model's input** (asserted). Its §10 turns each load forecast into a
-residual-load forecast (`load − fc_gen_wind_solar`) scored against `fc_residual_load`.
-
-Outside `notebooks/`:
-
-- `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md); loading ported from
-  `team-EDA.ipynb` §1 (still the source of truth); chart styling via the `chart-style` skill; no
-  `make` target. **Known issue:** imports like `streamlit.data_loading` are shadowed by the installed
-  `streamlit` package → `ModuleNotFoundError`.
-- `images/` — README screenshots. `models/` — gitignored template output.
+Outside `notebooks/`: `streamlit/` — app from [Streamlit-draft.md](.claude/specs/Streamlit-draft.md),
+loading ported from `team-EDA.ipynb` §1 (still the source of truth), styling via the `chart-style`
+skill, no `make` target; **known issue:** `streamlit.data_loading`-style imports are shadowed by the
+installed `streamlit` package (`ModuleNotFoundError`). `images/` — README screenshots. `models/` —
+gitignored template output.
 
 ## Data
 
-**`data/` is gitignored** (each subfolder has its own rule and a `.gitkeep`); nothing comes with a
-clone except the model saves in `data/models/<model_key>/` (committed on purpose). Raw files come
-from [API-connection.ipynb](notebooks/API-connection.ipynb); derived files are regenerated by
-re-running their producer.
+**`data/` is gitignored** (each subfolder has its own rule and a `.gitkeep`); a clone brings only
+the model saves in `data/models/<model_key>/` (committed on purpose). Raw files come from
+[API-connection.ipynb](notebooks/API-connection.ipynb); derived files are regenerated by re-running
+their producer. Notebook exports write only if `EXPORT_ENABLED` (default on; `-magc`: default off).
+Column layouts are defined in the producing spec.
 
 | File | Producer | Format |
 | --- | --- | --- |
 | `data/smard.csv` | API-connection (SMARD API, no key) | **German CSV**: `sep=";"`, `decimal=","`, `utf-8-sig` |
 | `data/rebap.csv` | API-connection (netztransparenz, OAuth2 via `.env`) | semicolon CSV |
 | `data/risk_classification/risk_labels_{daily,hourly}.csv` | `risk-definition.ipynb` | plain CSV |
-| `data/risk_classification/model_risk_labels_{daily,hourly}.csv` | `visualization-02-classification-risk-labels.ipynb` (spec 10), if `EXPORT_ENABLED` (default on) | plain CSV |
+| `data/risk_classification/model_risk_labels_{daily,hourly}.csv` | viz-02 (spec 10) | plain CSV |
 | `data/metrics/smard_*.csv` | `forecast-metrics-claude.ipynb` (spec 04) | plain CSV |
-| `data/models/model_*.csv` | `regression-models-claude.ipynb` (spec 06), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
-| `data/models/<model_key>/{config.json,results.joblib}` | same notebook §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
-| `data/models/ensemble_*.csv` | `ensemble-claude.ipynb` (spec 08), if `EXPORT_ENABLED` (default on) | plain CSV: hourly forecasts + bands, long scoreboard, weights |
-| `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2), only if `EXPORT_ENABLED` | plain CSV, long format |
-| `data/models/model_rebap_cost_hourly.csv` | `visualization-03-rebap-cost.ipynb` (spec 11), if `EXPORT_ENABLED` (default on) | plain CSV, long format |
-| `data/models/model_load_*.csv` | `grid-load-models-magc.ipynb`, only if `EXPORT_ENABLED` | as `model_*.csv`, for `grid_load` (SMARD row: `fc_grid_load`) |
+| `data/models/model_*.csv` | `regression-models-claude.ipynb` (spec 06) | plain CSV, long format |
+| `data/models/<model_key>/{config.json,results.joblib}` | same, §5, if `SAVE_MODELS` (default off) | JSON + joblib pickle of `RESULTS[model_key]` (spec 06 Behaviour 34) |
+| `data/models/ensemble_*.csv` | `ensemble-claude.ipynb` (spec 08) | plain CSV: hourly forecasts + bands, long scoreboard, weights |
+| `data/models/model_rebap_cost_hourly.csv` | viz-03 (spec 11) | plain CSV, long format |
+| `data/models/model_magc_*.csv` | `regression-models-magc.ipynb` (spec 06.2) | plain CSV, long format |
+| `data/models/model_load_*.csv` | `grid-load-models-magc.ipynb` | as `model_*.csv`, for `grid_load` (SMARD row: `fc_grid_load`) |
 | `data/features/residual_load_features{,_cutoff}.csv` | the two feature-engineering notebooks | plain CSV |
 
-Column layouts are defined in the producing spec. Gotchas:
+Gotchas:
 
-- **`smard.csv`**: read with `delimiter=";", encoding="utf-8-sig"` and convert numerics
-  (`str.replace(",", ".")` → `float`). Hourly, `Europe/Berlin`, from 2019-01-01; the end moves with
+- **`smard.csv`**: read with `delimiter=";", encoding="utf-8-sig"`, numerics via
+  `str.replace(",", ".")` → `float`. Hourly, `Europe/Berlin`, from 2019-01-01; the end moves with
   every re-fetch, so **never hardcode a calendar year** — derive from `YEARS`. Whole-record
-  quantiles shift with re-fetches (why spec 02 avoids them). The `cap_*` columns are yearly step
-  values repeated hourly, not measurements.
-- **DST:** one gap per spring switch (missing 02:00, next row 03:00) — the count grows with the
-  record, never hardcode it. Autumn days have 24 rows, no marker.
+  quantiles shift with re-fetches (why spec 02 avoids them). `cap_*` are yearly step values
+  repeated hourly, not measurements.
+- **DST:** one gap per spring switch (no 02:00, next row 03:00) — the count grows with the record,
+  never hardcode it. Autumn days have 24 rows, no marker.
 - **reBAP stays out of shared work** (no team EDA, no model features) — reserved for cost
   calculation after modelling (spec 11). Never paste credentials into a notebook. `rebap.csv`
   repeats autumn 02:00–02:45 (CEST, then CET): keep the last to match SMARD's 02:00 row.
 - **Risk labels: an empty flag means "not evaluable"** (first 365 days, incomplete day), never "not
   at risk" — never `fillna(False)`. Apply the exported thresholds to other series by joining on
-  `date`; never recompute them against another series. Same rule for `model_risk_labels_*.csv`,
-  where `model` in `high_*` / `low_*` columns is that direction's pick (`high_model` / `low_model`).
+  `date`, never recompute them against another series. Same for `model_risk_labels_*.csv`, where
+  `model` in `high_*` / `low_*` columns is that direction's pick (`high_model` / `low_model`).
 - **SMARD errors:** `err_* = forecast − actual` (positive = over-forecast); missing forecasts stay
   empty. `smard_forecast_errors_hourly.csv` is the source of truth for re-scoring any window. Use
   `offset_max_h` / `offset_min_h`, not timestamp subtraction (1 h off on DST days).
 - **Model exports:** SMARD's hourly values are not in `model_forecast_errors_hourly.csv` — join
-  `data/metrics/` on `timestamp`. The `-magc` scoreboard predates the refactor (bins `bottom` /
-  `ordinary` / `top`, no `below_zero`, 24-month window) — don't compare it with the `-claude` one by
-  metric name. Bin edges are quantiles of the actual over **all** test hours (spec 06, ensemble
-  too). `visualization-01-regression-best-models.ipynb` reads the `-claude` and `ensemble_*`
-  exports; it stops when the ensemble's model rows differ from `model_scoreboard.csv`, or when the
+  `data/metrics/` on `timestamp`. Bin edges are quantiles of the actual over **all** test hours
+  (spec 06, ensemble too). The `-magc` scoreboard predates the refactor (bins `bottom` / `ordinary`
+  / `top`, no `below_zero`, 24-month window) — don't compare it with `-claude` by metric name.
+  viz-01 stops when the ensemble's model rows differ from `model_scoreboard.csv`, or when the
   exports and `data/metrics/` come from different runs.
-- **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops
-  after a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle —
-  load team saves only.
-- **Features:** `residual_load_features.csv` (spec 05) is **not** leakage-safe under spec 06's 18:00
-  issue time; the `_cutoff` file (spec 06.1) is.
+- **Model saves:** `load_saved` per model: `"results"` loads (same data snapshot only — stops after
+  a re-fetch), `"config"` refits the saved tuning on any data. `results.joblib` is a pickle — load
+  team saves only.
+- **Forecast setting** (spec 06): issue time 18:00 on DAY−1 (SMARD's wind + solar forecast is due by
+  then), actuals lag 2 h → cutoff 16:00; a year's capacity counts as published at 00:00 on 1 Jan.
+  `residual_load_features.csv` (spec 05) is **not** leakage-safe under it; the `_cutoff` file
+  (spec 06.1) is.
 
 ## Specs and how we use Claude's output
 
 Specs live in `.claude/specs/`. **Every spec is a starting point**: run once, then the team edits
 the output (code and interpretation). Never re-run a spec, never overwrite an output notebook
 (only on a team member's explicit request plus confirmation), and never edit it back towards its
-spec — differences are team edits. **Always ask before editing any spec output notebook.**
+spec — differences are team edits, recorded in the spec's *Changes during the run* (09–11) or
+*Additions after the refactor* (06). **Always ask before editing any spec output notebook.**
+Output notebooks and files per spec: the layout tree and the Data table.
 
 | Spec | Status |
 | --- | --- |
-| 01 Simple EDA | Run → `EDA-simple-claude.ipynb` (reference, edited) |
-| 02 Risk definition | Run → `risk-definition.ipynb` (adopted) |
-| 03 + 03.1–03.7 Combined EDA | Run → `team-EDA.ipynb` (adopted) |
-| 04 Forecast metrics | Run → `forecast-metrics-claude.ipynb` (reference) + `data/metrics/` |
+| 01 Simple EDA | Run (reference, edited) |
+| 02 Risk definition | Run (adopted) |
+| 03 + 03.1–03.7 Combined EDA | Run (adopted) |
+| 04 Forecast metrics | Run (reference) |
 | 04.1 / 04.2 / 04.3, 05.1 | Parked — run only when a team member asks |
-| 05 Feature engineering | Run → `feature-engineering-magc.ipynb` (not adopted; file status line still says draft) |
-| 06 Regression models | Run → `regression-models-claude.ipynb` (reference) + `data/models/`; spec describes the refactored notebook, later changes under *Additions after the refactor* |
-| 06.1 Cutoff features | Run → `feature-engineering-cutoff-magc.ipynb` |
-| 06.2 Cutoff features in models | Run → `regression-models-magc.ipynb` (PR #33; file status line still says draft) |
+| 05 Feature engineering | Run (not adopted; status line still says draft) |
+| 06 Regression models | Run (reference); the spec describes the refactored notebook |
+| 06.1 Cutoff features | Run |
+| 06.2 Cutoff features in models | Run (PR #33; status line still says draft) |
 | 07 Hybrid linear stage | Draft, parked; partly overtaken — team kept the linear stage (2026-09-30) |
-| 08 Ensemble | Run → `ensemble-claude.ipynb` (reference) + three `data/models/ensemble_*.csv`; reads the spec 06 model saves (no refit), weights / edges / windows chosen on the validation year only, bands from out-of-fold validation forecasts; member diagnostic uses spec 09's pick rule and spec 10's risk flags; about 4 min |
-| 09 Best-model plots | Run → `visualization-01-regression-best-models.ipynb` (no suffix: team choice); team changes under *Changes during the run* |
-| 10 Model risk labeling | Run → `visualization-02-classification-risk-labels.ipynb` (no suffix: team choice) + two label files; team changes under *Changes during the run*; one pick per direction vs SMARD (`PICKS`, set by hand from spec 09 rank 1; an ensemble key only if it beats that pick, never added on top) |
-| 11 reBAP cost | Run → `visualization-03-rebap-cost.ipynb` (no suffix) + its cost file; `PICKS` by hand as in spec 10; team changes under *Changes during the run* |
+| 08 Ensemble | Run (reference); reads the spec 06 saves (no refit), bands from out-of-fold validation forecasts; about 4 min |
+| 09 Best-model plots | Run (no suffix: team choice) |
+| 10 Model risk labeling | Run (no suffix); one pick per direction vs SMARD (`PICKS` by hand from spec 09 rank 1; an ensemble only if it beats that pick, never on top) |
+| 11 reBAP cost | Run (no suffix); `PICKS` by hand as in spec 10 |
 | Streamlit-draft | Run → `streamlit/` (no trained model shown yet) |
 
 Spec 06 notebook, operationally: `USE_GPU` (default on) makes XGBoost results machine-dependent
 (`False` reproduces CPU); a full default run takes about 30 min on 16 cores, seconds with
-`load_saved = "results"`.
+`load_saved = "results"`. **Model decisions** (settings, grids, models, features; spec 08's
+weights too) are made on the validation year; the test year only confirms them. Tested and
+rejected, don't re-propose unasked: expanding or recency-weighted windows, tail-weighted tuning
+scorer, huber objectives, cuML, Prophet, hybrid linear-stage variants, per-group feature-builder
+registry; direct forest and 1 h lag: spec 06 *Additions*.
 
 `risk-definition.ipynb` decision status — **settled:** high and low are two independently
-thresholded directions. **Likely kept:** day rules `any` and `3h`, `rolling` basis (trailing
+thresholded directions, never conditioned on season or time of day (risk = physical stress, not
+"unusual for the season"). **Likely kept:** day rules `any` and `3h`, `rolling` basis (trailing
 365-day quantile over `[D-365, D-1]`), `zero` basis for low. **Open:** percentile level (1 %
 default), one target or two, ramps, capacity normalisation.
 
@@ -178,18 +181,20 @@ How output status works:
    member's choice; still a spec output, not adopted.
 2. **Conclusions in a `-claude` notebook are proposals** — never cite them as project facts.
    Adopted notebooks are project knowledge except where they mark something open.
-3. **Cell tags are the review mechanism** (`keep`, `duplicate`, `combine with X`, `optional`,
-   `modelling`, `streamlit`, `informational`). Spec 03 applies **"no tag, no plot"** — never
-   silently add or drop a plot; change the tag and the sub-spec instead.
+3. **Cell tags are the review mechanism** (spec 03: **"no tag, no plot"**) — never silently add or
+   drop a plot; change the tag and the sub-spec instead.
 
 ## Notebook conventions
 
-- **Per-member `EDA-<name>.ipynb`**: personal explorations, not project facts. **Nobody edits
-  anyone else's EDA file.** Their loading diverges (Hari: own re-fetched CSV, GW, hardcoded years;
-  magc: 2025 only; rebap-magc: `data/rebap_2022-2026.csv`) — never lift code into shared work
-  without rebuilding it on the shared foundation.
+- **Personal explorations** (per-member `EDA-<name>.ipynb`, `regression-models-hari.ipynb`,
+  `grid-load-models-magc.ipynb`): beyond the project scope; reference only — never project facts,
+  never steering shared work. **Nobody edits anyone else's EDA file.** The EDA files' loading
+  diverges (Hari: own re-fetched CSV, GW, hardcoded years; magc: 2025 only; rebap-magc:
+  `data/rebap_2022-2026.csv`) — never lift code into shared work without rebuilding it on the
+  shared foundation.
 - **Spec-driven notebooks** are shared files: resolve conflicts with `nbdime`
   (`nbdime config-git --enable` once per clone, then `nbdime mergetool`), never by hand-editing JSON.
+- **viz-0x** = `05_modeling/visualization-0{1,2,3}-*.ipynb` (specs 09–11).
 
 ## Shared analysis foundation
 
