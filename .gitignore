@@ -145,3 +145,7 @@ mlflow.db
 
 # VSCode Makefile
 .vscode
+
+# Presentation output
+docs/presentation/figures/
+docs/presentation/slide_numbers.csv
