@@ -1,19 +1,19 @@
 {
   "model": "xgb_hybrid",
-  "saved_at": "2026-09-30 14:11",
-  "seconds": 195.0,
-  "device": "cpu",
+  "saved_at": "2026-10-06 14:56",
+  "seconds": 199.1,
+  "device": "cuda",
   "selected": {
     "random_state": 42,
     "tree_method": "hist",
-    "device": "cpu",
-    "subsample": 1.0,
-    "reg_lambda": 5,
+    "device": "cuda",
+    "subsample": 0.7,
+    "reg_lambda": 50,
     "objective": "reg:squarederror",
-    "n_estimators": 600,
+    "n_estimators": 1500,
     "min_child_weight": 20,
     "max_depth": 4,
-    "learning_rate": 0.05,
+    "learning_rate": 0.03,
     "colsample_bytree": 0.5
   },
   "settings": {
@@ -135,9 +135,9 @@
   },
   "tuned_on": {
     "smard.csv": {
-      "rows": 67336,
+      "rows": 67912,
       "start": "2019-01-01 00:00:00",
-      "end": "2026-09-06 23:00:00",
+      "end": "2026-09-30 23:00:00",
       "month_hashes": {
         "2019-01": "d0cd9f8005ed6cfc",
         "2019-02": "7fbef5526bafbb68",
@@ -231,13 +231,13 @@
         "2026-06": "d84f0664124b20c4",
         "2026-07": "04dc90b2914dd190",
         "2026-08": "397f07cbfadfee03",
-        "2026-09": "69ea89d3a1242fa9"
+        "2026-09": "7a179363fee176d2"
       }
     },
     "smard_forecast_errors_hourly.csv": {
-      "rows": 67336,
+      "rows": 67912,
       "start": "2019-01-01 00:00:00",
-      "end": "2026-09-06 23:00:00",
+      "end": "2026-09-30 23:00:00",
       "month_hashes": {
         "2019-01": "a91f014e464eade0",
         "2019-02": "b7ccd49279b70af0",
@@ -331,17 +331,17 @@
         "2026-06": "26f4e92dcd0cc981",
         "2026-07": "230e35a86408f2dd",
         "2026-08": "ca11e2fae177bea0",
-        "2026-09": "3e5455dcd4711497"
+        "2026-09": "f9383e2a07761b7a"
       }
     },
-    "validation": "2024-09-07 .. 2025-09-06",
-    "test": "2025-09-07 .. 2026-09-06"
+    "validation": "2024-10-01 .. 2025-09-30",
+    "test": "2025-10-01 .. 2026-09-30"
   },
   "run_on": {
     "smard.csv": {
-      "rows": 67336,
+      "rows": 67912,
       "start": "2019-01-01 00:00:00",
-      "end": "2026-09-06 23:00:00",
+      "end": "2026-09-30 23:00:00",
       "month_hashes": {
         "2019-01": "d0cd9f8005ed6cfc",
         "2019-02": "7fbef5526bafbb68",
@@ -435,13 +435,13 @@
         "2026-06": "d84f0664124b20c4",
         "2026-07": "04dc90b2914dd190",
         "2026-08": "397f07cbfadfee03",
-        "2026-09": "69ea89d3a1242fa9"
+        "2026-09": "7a179363fee176d2"
       }
     },
     "smard_forecast_errors_hourly.csv": {
-      "rows": 67336,
+      "rows": 67912,
       "start": "2019-01-01 00:00:00",
-      "end": "2026-09-06 23:00:00",
+      "end": "2026-09-30 23:00:00",
       "month_hashes": {
         "2019-01": "a91f014e464eade0",
         "2019-02": "b7ccd49279b70af0",
@@ -535,10 +535,10 @@
         "2026-06": "26f4e92dcd0cc981",
         "2026-07": "230e35a86408f2dd",
         "2026-08": "ca11e2fae177bea0",
-        "2026-09": "3e5455dcd4711497"
+        "2026-09": "f9383e2a07761b7a"
       }
     },
-    "validation": "2024-09-07 .. 2025-09-06",
-    "test": "2025-09-07 .. 2026-09-06"
+    "validation": "2024-10-01 .. 2025-09-30",
+    "test": "2025-10-01 .. 2026-09-30"
   }
 }
