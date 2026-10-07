@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from components.layout import next_page
 from model_results import (
     BASES,
     default_zoom_weeks,
@@ -695,3 +696,5 @@ for tab, direction in zip(tabs, BASES):
         zoom_week(direction, basis)
         st.subheader("Near misses")
         day_margin(direction, basis)
+
+next_page("app_pages/risk_days.py")

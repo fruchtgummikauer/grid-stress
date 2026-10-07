@@ -1,0 +1,20 @@
+# Streamlit theme: the PowerRangers palette (.claude/skills/chart-style, streamlit/viz_helpers.py).
+# Read from the directory the app is started in: run `uv run streamlit run streamlit/streamlit_app.py`
+# from the repo root. Keep the hexes in step with viz_helpers.py.
+
+[theme]
+base = "light"
+primaryColor = "#1B3C65"              # navy: buttons, sliders, active widgets
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F1F5"  # sidebar, inputs, cards
+textColor = "#1B3C65"
+linkColor = "#0B7F81"                 # dark teal, 4.8:1 on white
+borderColor = "#E4E6EE"
+font = "sans-serif"
+# Chart colours for Streamlit's built-in charts and for st.plotly_chart's default "streamlit"
+# theme. They equal viz_helpers.PALETTE, so a trace without its own colour still matches; model
+# lines set theirs explicitly (model_line). matplotlib takes its colours from viz_helpers.py only.
+# The sequential list must hold exactly ten colours (else Streamlit falls back to its default
+# blues): the periwinkle -> navy ramp of viz_helpers.SEQUENTIAL, resampled to ten steps.
+chartCategoricalColors = ["#12989A", "#2E64B0", "#C27C00", "#9A5FA8", "#C8553D", "#5566C2"]
+chartSequentialColors = ["#E3E7F6", "#BAC4E9", "#95A5DC", "#8091D1", "#6B7DC5", "#566AB4", "#445AA1", "#324C8A", "#264477", "#1B3C65"]

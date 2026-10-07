@@ -9,6 +9,7 @@ handling on top. It computes no new results: risk flags and thresholds come from
 never recomputed (CLAUDE.md).
 """
 
+import json
 from dataclasses import dataclass, field
 
 import holidays
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from components.layout import current_page, next_page
 from data_loading import _find_data_dir
 
 MODEL_SOURCE = (
@@ -26,13 +28,18 @@ RISK_SOURCE = (
     "notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb "
     "with EXPORT_ENABLED = True (after the model exports)"
 )
+ENSEMBLE_SOURCE = "notebooks/05_modeling/ensemble-claude.ipynb with EXPORT_ENABLED = True (after the model saves)"
 SOURCES = {
     "scoreboard": ("models/model_scoreboard.csv", MODEL_SOURCE),
     "hourly": ("models/model_forecast_errors_hourly.csv", MODEL_SOURCE),
     "smard": ("metrics/smard_forecast_errors_hourly.csv", SMARD_SOURCE),
     "risk_daily": ("risk_classification/model_risk_labels_daily.csv", RISK_SOURCE),
     "risk_hourly": ("risk_classification/model_risk_labels_hourly.csv", RISK_SOURCE),
+    "ensemble_hourly": ("models/ensemble_forecast_errors_hourly.csv", ENSEMBLE_SOURCE),
+    "ensemble_scoreboard": ("models/ensemble_scoreboard.csv", ENSEMBLE_SOURCE),
+    "ensemble_weights": ("models/ensemble_weights.csv", ENSEMBLE_SOURCE),
 }
+ENSEMBLE_EXPORTS = ["ensemble_hourly", "ensemble_scoreboard", "ensemble_weights"]
 STAMP = "%Y-%m-%d %H:%M:%S"
 
 # Pick settings, as in spec 09's settings cell
@@ -55,16 +62,31 @@ OUTCOMES = ["hit", "miss", "false alarm", "quiet"]
 PERSISTENCE = pd.Timedelta("3h")  # the `3h` day rule, as a duration
 
 
-@st.cache_data
-def load_export(name):
-    """One file as a DataFrame; raises `FileNotFoundError` naming the producing notebook."""
-    path, producer = SOURCES[name]
-    path = _find_data_dir() / path
+def export_stamp(name):
+    """Modification time of export `name`; raises `FileNotFoundError` naming its notebook."""
+    relative, producer = SOURCES[name]
+    path = _find_data_dir() / relative
     if not path.exists():
         raise FileNotFoundError(
-            f"`data/{SOURCES[name][0]}` not found. data/ is gitignored — create it by running "
+            f"`data/{relative}` not found. data/ is gitignored — create it by running "
             f"{producer}."
         )
+    return path.stat().st_mtime
+
+
+def load_export(name):
+    """One file as a DataFrame.
+
+    Raises `FileNotFoundError` naming the producing notebook. Cached on the file's modification
+    time, so a re-export shows without clearing the cache (Streamlit-v3.md §2.4).
+    """
+    stamp = export_stamp(name)
+    return _read_export(str(_find_data_dir() / SOURCES[name][0]), stamp)
+
+
+@st.cache_data
+def _read_export(path, mtime):
+    """The cached body of `load_export`; `mtime` is only the cache key."""
     frame = pd.read_csv(path)
     if "timestamp" in frame.columns:
         frame["timestamp"] = pd.to_datetime(frame["timestamp"], format=STAMP)
@@ -74,12 +96,25 @@ def load_export(name):
 
 
 def get_or_stop(builder):
-    """Call a cached builder; on a missing file show the message and stop the page."""
+    """Call a builder; on a missing file show why, link to the next page, and stop the page."""
     try:
         return builder()
     except FileNotFoundError as exc:
-        st.error(f"Model results not available: {exc}")
+        st.info(f"Model results not available yet: {exc}")
+        next_page(current_page())
         st.stop()
+
+
+def get_or_info(builder, what):
+    """Call a builder for one section; on a missing file show why and return None.
+
+    The page goes on: use it for sections whose export is optional (Streamlit-v3.md §2.4).
+    """
+    try:
+        return builder()
+    except FileNotFoundError as exc:
+        st.info(f"{what} not available yet: {exc}")
+        return None
 
 
 def is_set(flag):
@@ -180,8 +215,14 @@ def _rank_key(value, row, category):
     return (value.loc[row, f"MAE_{category}_by_actual"], row[0])
 
 
-@st.cache_data
 def load_accuracy() -> Accuracy:
+    """`Accuracy` of the model exports, cached on its input files."""
+    stamps = tuple(export_stamp(name) for name in ("scoreboard", "hourly", "smard"))
+    return _load_accuracy(stamps)
+
+
+@st.cache_data
+def _load_accuracy(stamps) -> Accuracy:
     """Build `Accuracy` from the model and SMARD exports, identically to spec 09 §1.3–§2."""
     scoreboard = load_export("scoreboard")
     hourly = load_export("hourly")
@@ -351,8 +392,14 @@ class RiskLabels:
         return self.hourly[f"{source}_{direction}_risk_hour_{basis}"]
 
 
-@st.cache_data
 def load_risk_labels() -> RiskLabels:
+    """Spec 10's risk labels, cached on the export files."""
+    stamps = tuple(export_stamp(name) for name in ("risk_daily", "risk_hourly"))
+    return _load_risk_labels(stamps)
+
+
+@st.cache_data
+def _load_risk_labels(stamps) -> RiskLabels:
     """Read spec 10's export with three-state flags (an empty flag is "not evaluable")."""
     daily = load_export("risk_daily").set_index("date")
     hourly = load_export("risk_hourly").set_index("timestamp")
@@ -517,3 +564,34 @@ def default_zoom_weeks(labels):
             first = weeks[direction][0][0] if weeks[direction] else None
             weeks[direction].append((pick(first), reason))
     return weeks
+
+
+# ============================================================================
+# Model windows (spec 06 saves)
+# ============================================================================
+def model_windows():
+    """The validation and test windows of the spec 06 saves, as (start, end) Timestamps.
+
+    Read from `data/models/<model_key>/config.json` (`tuned_on`), which a clone carries. Raises
+    `FileNotFoundError` when no save is found.
+    """
+    configs = sorted((_find_data_dir() / "models").glob("*/config.json"))
+    for path in configs:
+        tuned_on = json.loads(path.read_text()).get("tuned_on", {})
+        if "validation" in tuned_on and "test" in tuned_on:
+            return {
+                name: tuple(pd.Timestamp(part) for part in tuned_on[name].split(" .. "))
+                for name in ("validation", "test")
+            }
+    raise FileNotFoundError(
+        "no model save with `tuned_on` windows in data/models/ — run "
+        "notebooks/05_modeling/regression-models-claude.ipynb with SAVE_MODELS = True."
+    )
+
+
+def ensemble_ready():
+    """True when all of spec 08's ensemble exports exist (the app's ensemble blocks are still
+    placeholders; this only changes their wording)."""
+    return all(
+        (_find_data_dir() / SOURCES[name][0]).is_file() for name in ENSEMBLE_EXPORTS
+    )
