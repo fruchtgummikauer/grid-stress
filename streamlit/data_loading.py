@@ -83,12 +83,19 @@ def _find_smard_csv(data_dir: Path) -> Path:
     )
 
 
-@st.cache_data
 def load_smard() -> pd.DataFrame:
-    """Load and prepare `time_series`, identically to `team-EDA.ipynb` §1.3-§1.4."""
-    data_dir = _find_data_dir()
-    path = _find_smard_csv(data_dir)
+    """Load and prepare `time_series`, identically to `team-EDA.ipynb` §1.3-§1.4.
 
+    Cached on the file's path and modification time, so a re-fetch shows without clearing the
+    cache (Streamlit-v3.md §2.4).
+    """
+    path = _find_smard_csv(_find_data_dir())
+    return _load_smard(str(path), path.stat().st_mtime)
+
+
+@st.cache_data
+def _load_smard(path: str, mtime: float) -> pd.DataFrame:
+    """The cached body of `load_smard`; `mtime` is only the cache key."""
     raw = pd.read_csv(path, delimiter=";", encoding="utf-8-sig")
     assert set(raw.columns) == {"timestamp"} | set(COLUMNS), (
         f"unexpected CSV header: {sorted(set(raw.columns) ^ ({'timestamp'} | set(COLUMNS)))}"
@@ -121,3 +128,29 @@ def load_smard() -> pd.DataFrame:
 def get_years(time_series: pd.DataFrame) -> list[int]:
     """`YEARS`, computed from the loaded data — never hardcoded (`team-EDA.ipynb` §1.4)."""
     return sorted(int(y) for y in time_series["year"].unique())
+
+
+RISK_LABELS_DAILY = "risk_classification/risk_labels_daily.csv"
+RISK_LABELS_PRODUCER = "notebooks/03_risk_classification/risk-definition.ipynb"
+
+
+def load_risk_labels_daily() -> pd.DataFrame:
+    """Spec 02's daily risk labels (`risk-definition.ipynb`), indexed by `date`.
+
+    Flags stay three-state: an empty flag means "not evaluable", never "not at risk" (CLAUDE.md).
+    Raises `FileNotFoundError` naming the producing notebook.
+    """
+    path = _find_data_dir() / RISK_LABELS_DAILY
+    if not path.exists():
+        raise FileNotFoundError(
+            f"`data/{RISK_LABELS_DAILY}` not found. data/ is gitignored — create it by running "
+            f"{RISK_LABELS_PRODUCER}."
+        )
+    return _load_risk_labels_daily(str(path), path.stat().st_mtime)
+
+
+@st.cache_data
+def _load_risk_labels_daily(path: str, mtime: float) -> pd.DataFrame:
+    """The cached body of `load_risk_labels_daily`; `mtime` is only the cache key."""
+    labels = pd.read_csv(path, parse_dates=["date"])
+    return labels.set_index("date")
