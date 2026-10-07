@@ -1,188 +1,171 @@
 # Streamlit v3 — App Structure and UX
 
-- Status: **draft, reviewed** (2026-10-06), not run. Umbrella spec for the app restructure; each
-  page gets its own sub-spec (`Streamlit-v3.<n>-<page>.md`, §4).
+- Status: **Run** (2026-10-07, PR #51, merged). Planned as an umbrella spec with one sub-spec per
+  page; instead every page was rebuilt directly after a page-by-page UX review for a public
+  audience. §1 is the plan as reviewed, §2 what was built, §3 the changes during the run.
 - Builds on [Streamlit-draft.md](Streamlit-draft.md) (v1 §1–§16, PR #28; v2 §17, PR #43), which
-  stays the record of what was built. Where they disagree, this spec wins for v3 work.
+  stays the record of what was built before. Where they disagree, this spec wins for v3 work.
 - Audience: **bootcamp demo day** (instructors, peers, recruiters; mostly no energy background).
   A **5 min** live walkthrough, story first, detail on demand.
-- Decisions (team review, 2026-10-06):
 
-  | Topic | Decision |
-  |---|---|
-  | Pages | **5 pages**; no Explore page; Risk days removed (`risk_days.py` kept, off the navigation); reBAP and prediction bands are sections of "Where we beat SMARD" |
-  | Background | stays the EDA page, with a short context intro for non-experts on top |
-  | Method | tabs, no EDA: risk days, forecast setting, metrics, models, ensemble |
-  | Model sets | **spec 06 only**; the spec 06.2 `-magc` set is ignored (no switch, no `model_magc_*.csv`) |
-  | Navigation | `st.navigation` + `st.Page`, files in `streamlit/app_pages/` |
-  | Shared extras | demo-mode toggle, data check on Home, theme file; **no per-chart source captions** |
-  | Results shown | the current runs (spec 06, 08, viz-01/02/03), **labelled once** on Method → Models as "the reference runs of <date>" (`-claude` conclusions are proposals, CLAUDE.md) |
-  | Units | MWh as everywhere (CLAUDE.md), no GW exception |
+## 1. Decisions (team review, 2026-10-06)
 
-## 1. Pages
+| Topic | Decision |
+|---|---|
+| Pages | **5 pages**; no Explore page; Risk days removed (`risk_days.py` kept, off the navigation) |
+| Background | stays the EDA page, with a context intro for non-experts |
+| Method | tabs, no EDA: risk days, forecast setting, metrics, models, ensemble |
+| Model sets | **spec 06 only**; the spec 06.2 `-magc` set is ignored |
+| Navigation | `st.navigation` + `st.Page`, files in `streamlit/app_pages/` |
+| Shared extras | demo-mode toggle, data check, theme file; no per-chart source captions |
+| Results shown | the current runs (spec 06, 08, viz-01/02/03); `-claude` conclusions are proposals |
+| Units | MWh as everywhere (CLAUDE.md), no GW exception |
 
-| # | Page | File | Takeaway (shown by `header()`) |
+## 2. As built
+
+Every page: interactive **Plotly** charts, every number in the text computed from the data or the
+exports, takeaway first, technical detail in expanders, a "Next →" link along `TOUR`.
+
+| # | Page | File | Takeaway (`header()`) |
 |---|---|---|---|
-| 1 | **Home** | `home.py` | "We forecast Germany's residual load a day ahead and beat the official forecast by X %." |
-| 2 | **Background** | `background.py` | "Wind and sun now drive the grid's swings, in a national rhythm; the extremes are where the grid is at risk." |
-| 3 | **Method** | `method.py` | "A fair forecast setting and a strict benchmark." |
-| 4 | **Where we beat SMARD** | `beat_smard.py` | "Better on average, best where SMARD is weakest, and worth € X M at the imbalance price." |
-| 5 | **Team / About** | `about.py` | "Who we are, what we used, where the code is." |
+| 1 | Home | `home.py` | "Forecasting tomorrow's pressure on Germany's power grid" (subtitle, no `header()`) |
+| 2 | Background | `background.py` | "Before forecasting, we studied every hour since <first year>." |
+| 3 | Method | `method.py` | "We don't build a forecast from scratch — we learn where the official one is systematically wrong." |
+| 4 | Where we beat SMARD | `beat_smard.py` | "Our forecast misses <skill> % less than the official one." |
+| 5 | Team / About | `about.py` | "Who we are, what we used, and where the code is." |
 
-- **Order:** the sidebar lists the pages in the table's order, with no section labels; every page
-  ends with a "Next →" link along it. The demo walks the same order, story first.
+### 2.1 Home
 
-### 1.1 Home
+Hook paragraph → fact tiles (years, hourly readings, data up to) → **week chart**: wind + solar
+stacked under electricity use, residual load below with the below-zero part shaded; a radio picks
+any Mon–Sun week touching the record's last 30 days (default: the last complete one) → formula →
+two risk cards → **risk-days chart** from `risk_labels_daily.csv` (daily range band, `rolling` /
+`any` flags as dots; empty flags = no dot) → "What we did" with a link → tour from `TOUR` →
+glossary and "For the technically curious" expanders.
 
-1. Title + subtitle: "Day-ahead forecast of Germany's residual load, against the official SMARD
-   forecast."
-2. **KPI row** (`st.metric` ×3, computed): our MAE vs SMARD's with skill %; months beating SMARD;
-   skill on hours below 0 MWh.
-3. "What is residual load?": three lines + `st.latex`, one typical week (grid load vs residual load).
-4. **Tour:** `st.page_link` per page with icon and takeaway.
-5. **Data check** (collapsed expander, §2.3). 6. Footer: data source (SMARD / Bundesnetzagentur)
-   [ASSUMPTION: licence line to be checked], data range from `smard.csv`.
+### 2.2 Background
 
-### 1.2 Background
+Four chapters, each with a bold takeaway, a chart and at most three bullets:
 
-1. **Context intro (new, Plotly):** residual load = grid load − wind − solar as one week; two cards,
-   **high** (imports, Dunkelflaute) vs **negative** (oversupply, negative prices), each with a
-   computed KPI (hours/year above P99 / below 0 MWh); the question in an `st.info`.
-2. **EDA (existing matplotlib figures, all kept)**, at most 3 finding bullets each; correlation
-   and autocorrelation go into an expander.
-3. The negative-hour share is **computed once** (replaces the hardcoded 1.26 % and "about 2 %").
+1. **A typical day:** hourly profile with a season radio (all year / four seasons); holidays.
+2. **The year:** residual load month × hour heatmap (`residual_colorscale`); the other five
+   views (series × month / weekday / season) behind radios in an expander.
+3. **The change:** negative hours per year and residual load by year (median, P10–P90), both on
+   the matched window 1 Jan → record end.
+4. **The two extremes:** mirrored bars of the lowest / highest 1 % of hours by month and by hour
+   (year and weekday in an expander).
 
-Data: `smard.csv` only; findings from `team-EDA.ipynb` (adopted).
+Then "Three things to remember" (team-EDA's findings, plain words) and "For the technically
+curious": distribution with shape table, one-hour ramps by year (median and P99), wind+solar share
+vs residual load density, Spearman matrix, load duration curves, missing values, the open question.
 
-### 1.3 Method
+### 2.3 Method
 
-`st.tabs`, each with a 3-bullet summary on top and detail in expanders.
+Intro, then `st.tabs`; a "What this can't tell us" `st.info` below the tabs on every tab.
 
 | Tab | Content | Source |
 |---|---|---|
-| Risk days | two directions, trailing 365-day 1 % quantile, `zero` basis for low, rules `any` / `3h`; today's threshold chart | `risk-definition.ipynb` (day rule open) |
-| Forecast setting | timeline: issue 18:00 DAY−1, cutoff 16:00, capacity from 1 Jan; the leakage test in one sentence | spec 06 |
-| Metrics | MAE, RMSE, bias, skill = 1 − MAE / MAE_SMARD, tail bins, why no MAPE, SMARD's own error level; reBAP pricing as text only (\|error\| × \|reBAP\|) | spec 04, spec 11 |
-| Models | model cards (`streamlit/content/models.yaml`): name, one-line idea, inputs, direct vs hybrid; static vs rolling refit; tuning on the validation year; the reference-run line | `regression-models-claude` |
-| Ensemble | members, four combination methods, `regime_weighted` weights (bar), viz-01's compute cost per pick | `ensemble-claude`, viz-01 |
+| ① What we forecast | timeline (actuals known to `CUTOFF_HOUR`, issue 18:00, the 24 forecast hours); input flow (`st.graphviz_chart`, spec 06 Behaviour 18 default groups); validation / test years | spec 06; windows via `model_windows()` |
+| ② The official forecast | SMARD on the **test year**: one-day chart with date picker (default SMARD's worst day), nMAE per component, miss by hour / month; full tables incl. whole record in an expander | `smard_forecast_errors_hourly.csv` |
+| ③ How we judge "better" | MAE and skill in words, a skill example (labelled as illustration), test-year histogram with the scoring bins; RMSE, bias, no MAPE, reBAP proxy in an expander | `load_accuracy()` |
+| ④ Risk days | radios for day rule (`any` / `3h`) and low basis (`rolling` / `zero`); daily range + thresholds + flagged days; share of evaluable days flagged per year; `static` in an expander | `risk_labels_daily.csv`, never recomputed |
 
-### 1.4 Where we beat SMARD
+- `CUTOFF_HOUR = 16` (2 h actuals lag, the team's current trial) is the page's only cutoff value.
+- Models and Ensemble tabs: **not built** (§4).
 
-The core result and the longest page; in demo mode blocks 5–8 collapse into expanders.
+### 2.4 Where we beat SMARD
 
-1. Headline + KPI row: best pick, the ensemble, SMARD. Below it, **risk days caught vs SMARD**
-   (high `rolling` + low `zero`, rule `any`; viz-02's labels; `get_or_info` while they are missing).
-2. **When:** monthly skill + cumulative lead (existing). 3. **Where in the day:** skill by hour
-   (existing). 4. **At the extremes:** tabs `ordinary` / `below_zero` / `low_extreme` /
-   `high_extreme` (existing).
-5. **How sure are we (new):** one week with the 95 % band, coverage vs nominal, one sentence on
-   the gap [ASSUMPTION: the hourly export carries `lower` / `upper`, otherwise spec 06 §8 adds them].
-6. **What it's worth (new, viz-03):** tabs Overall / Below 0 / Low extreme / High extreme, mirroring
-   block 4 (MWh, then €). Per tab: € saved and % vs SMARD, saved per price band, top 10 decisive
-   hours; Overall also saved per month and cumulative. Scatter and money-vs-MAE-rank in an expander.
-   Picks per tab are viz-03's by hand (`ensemble_regime_weighted` for overall and below 0,
-   `random_forest_hybrid` low, `xgb_hybrid` high), one constant in `model_results.py`. Caveat on
-   top: "a proxy: the reBAP prices the error, it is not what the TSOs paid." Reads
-   `model_rebap_cost_hourly.csv` only, never raw `rebap.csv`.
-7. **Explore (existing):** week and forecast explorers; presets best week, worst week, Easter 2026,
-   longest negative run (computed); the week lives in `explore_week`.
-8. **Ensemble vs single models (new, viz-01):** grouped skill bars per category, picks table below.
+1. **Headline and proof:** intro (we improve SMARD, not rival it), link to Method; hero bars
+   (average miss, SMARD vs ours); four tiles; ensemble placeholder; **risk days caught / missed /
+   false alarms** vs SMARD (hidden while `model_risk_labels_*.csv` is missing).
+2. **Page-wide switch:** "Compare models" toggle; off = "Our forecast" (spec 09's overall rank 1)
+   vs SMARD; on = multiselect of the `rolling` rows, `static` variants behind a checkbox.
+   "Which models?" expander: one line per family, and why the headline pick isn't the lowest MAE.
+3. **"Is it luck?"** monthly skill (won / lost bars; lines when comparing); **"Where does the lead
+   come from?"** running total with the biggest-gain month marked; **"At what time of day?"**.
+4. **"When it matters most":** overview bars by situation, then tabs Normal hours / Green-power
+   surplus / Most extreme surplus / Most extreme shortage: one-line summary, "saw it coming /
+   missed it / false alarm" counts (normal hours: miss by hour); scatter and spread in expanders;
+   the pick rule in its own expander.
+5. **"Explore the test year":** one explorer; presets a week of your choice, best / worst week,
+   best / worst month, spec 10's risk weeks, the whole year; "who was closer" bars for one model.
+6. **"Coming next":** ensemble placeholders "How sure are we?" and "One model or a team of
+   models?"; monthly numbers for analysts; closing "What this means" (computed).
 
-- The ensemble pick is one more line (`ENSEMBLE_COLOR`) in blocks 2–4, removable in the picker.
+### 2.5 Team / About
 
-### 1.5 Risk days (removed)
+GitHub button; team cards (Robert, Marco, Hari, Monica in one row, Claude below; name, title,
+one-liner in the team's words); project in numbers (computed); recap with links; project timeline
+(`st.graphviz_chart`, ensemble and bands dashed); data and tools; disclaimer; next steps; developer
+expander; data check (hidden in demo mode); footer with attribution and licence links.
 
-Taken off the navigation on 2026-10-06 (team decision); `app_pages/risk_days.py` stays in the repo.
-viz-02's risk labels still feed the zoom weeks on "Where we beat SMARD".
+- SMARD data: **CC BY 4.0**, credited "Bundesnetzagentur | SMARD.de" (smard.de/en/datennutzung),
+  with a note that derived values are ours. Code: link to the repo's `LICENSE` (MIT).
 
-### 1.6 Team / About
-
-Names and roles (placeholders for now), repo link, tools, data source, "what we'd do next".
-
-### 1.7 Viz notebooks in the app
-
-Every figure of viz-01/02/03 has one place ("exists" = in the app since v2):
-
-| Notebook | Figures → page / block |
-|---|---|
-| viz-01 | §3.1 picks → beat SMARD 8; §3.2–3.3 scoreboards → "numbers behind it"; §3.4 compute cost → Method / Ensemble; §4.1–4.3, §5–8, §9.1 → beat SMARD 2–4 (exist, + ensemble line); §4.4 → explorer (exists) |
-| viz-02 | §3 scores → beat SMARD 1 (risk days caught) and the zoom weeks; the rest not shown (§1.5) |
-| viz-03 | §2.2 / §3.x / §4–6 → beat SMARD 6; §8.3 worked hour **left out** (needs raw `rebap.csv`) |
-
-- **Producing the inputs:** `ensemble-claude` → viz-02 → viz-03 in that order, each executed as a
-  copy outside the repo (`nbconvert --output-dir`), so only `data/` changes.
-- **Snapshot rule:** `ensemble-claude` stops when the spec 06 saves don't match the local data. On
-  2026-10-06 the saves (PR #38) were refitted locally; committing them is a team decision.
-
-## 2. Architecture
-
-### 2.1 Files
+## 3. Architecture
 
 ```text
-.streamlit/config.toml   # theme, at the repo root (read from the directory the command runs in)
+.streamlit/config.toml   # theme, at the repo root
 streamlit/
-  streamlit_app.py       # entry: set_page_config, sidebar(), st.navigation(...).run()
-  app_pages/             # page scripts ("pages/" would trigger the old folder navigation)
-  components/            # layout.py (TOUR, sidebar, header, next_page), data_check.py; kpis.py, charts.py later
-  data_loading.py, model_results.py, viz_helpers.py
-  content/models.yaml    # model cards
+  streamlit_app.py       # entry: set_page_config, navigation from TOUR, sidebar(), run()
+  app_pages/             # home, background, method, beat_smard, about (+ risk_days, off the tour)
+  components/            # layout.py (TOUR, sidebar, header, next_page, demo_mode), data_check.py
+  data_loading.py        # load_smard, get_years, load_risk_labels_daily
+  model_results.py       # SOURCES, load_accuracy, load_risk_labels, risk_scores,
+                         # model_windows (config.json), ensemble_ready
+  viz_helpers.py         # palette, style_plotly, Plotly scales (DIV_SCALE, GRID_LOAD_SCALE,
+                         # SEQ_SCALE, residual_colorscale)
 ```
 
-Run `uv run streamlit run streamlit/streamlit_app.py` from the repo root; bare imports stay.
+- Run `uv run streamlit run streamlit/streamlit_app.py` from the repo root.
+- **State:** `demo_mode` (sidebar), `rows` (beat SMARD's compare multiselect), `smard_miss_by`
+  (Method ②). Other widgets keep Streamlit's default keys.
+- **Demo mode:** hides Plotly toolbars and the data check.
+- **Caching:** `@st.cache_data` keyed on the file's modification time. A missing export hides or
+  explains only its section; `get_or_stop` only where a page can't work without the file.
+- **Data check** (About): every file in `SOURCES` plus `smard.csv` and `risk_labels_daily.csv`,
+  including the three `ensemble_*.csv`.
+- **Style:** colours from `viz_helpers.py` (`chart-style` skill); SMARD dashed slate; high risk
+  warm, low risk cool; a unit on every axis; notebook names only in captions and expanders.
 
-### 2.2 State
+## 4. Changes during the run
 
-| Key | Set by | Default |
+1. **No sub-specs.** The pages were rebuilt directly from a UX review (comprehension,
+   visualisations, text), one page at a time, each confirmed by the team before applying.
+2. **Plotly on every page**, matplotlib on none (the plan kept matplotlib on Background).
+3. **Home:** no KPI row of model results (they live on "Where we beat SMARD"); fact tiles and the
+   week picker instead. The data check moved to Team / About.
+4. **Background:** not "all figures kept": restructured into chapters, technical figures in an
+   expander; new negative-hours bar; mirrored bars replace the 2 × 2 grouped bars; ramps by year
+   replace the ramp-percentile curve. Wording: "the typical hour falls year on year" became
+   "has drifted down over the record" (the matched-window medians are not monotonic;
+   team-EDA keeps the old wording).
+5. **Method:** risk days read the export instead of recomputing thresholds (CLAUDE.md rule);
+   SMARD scored on the test year, not the whole record; windows from the model saves.
+6. **Where we beat SMARD:** one page-wide switch replaces five "Compare models" multiselects;
+   situation tabs renamed; counts replace the scatter as the default view; the week chart and the
+   explorer merged. The headline keeps spec 09's pick rule and says so.
+7. **Ensemble:** placeholders only (`ensemble_slot`); `ensemble_ready()` changes their wording once
+   `ensemble_forecast_errors_hourly.csv`, `ensemble_scoreboard.csv`, `ensemble_weights.csv` exist.
+8. **Not built:** bands with coverage (block 5), reBAP section (block 6), Method's Models and
+   Ensemble tabs, `content/models.yaml` (model one-liners live in `MODEL_IDEA`, `beat_smard.py`).
+9. **Team / About** built with the team's names, titles and one-liners; SMARD attribution and
+   licence links added after checking SMARD's terms.
+
+## 5. Next steps
+
+| Step | Work | Needs |
 |---|---|---|
-| `demo_mode` | sidebar toggle | `False` |
-| `compare_models` | "compare all models" multiselects (beat SMARD) | the spec 09 picks |
-| `explore_week` | the beat SMARD explorer | last full week |
+| 1 | Produce the missing exports: `model_risk_labels_*.csv` (viz-02), `ensemble_*.csv` (spec 08), `model_rebap_cost_hourly.csv` (viz-03) | about 1 h compute |
+| 2 | Ensemble blocks: hero bar, situation bar, bands and coverage, ensemble vs single models | step 1 |
+| 3 | reBAP section on "Where we beat SMARD" (viz-03, `model_rebap_cost_hourly.csv` only) | step 1 |
+| 4 | Method: Models tab (model cards) and Ensemble tab (members, weights) | step 1 for weights |
+| 5 | Docs: `chart-style` skill (Plotly on every page, the Plotly scales); CLAUDE.md's Streamlit lines ("no trained model shown yet", import issue) | — |
+| 6 | Rehearsal + `streamlit/DEMO.md` (run order, presets, a fallback screenshot per page) | all |
 
-### 2.3 Shared components
-
-- **Sidebar:** demo-mode toggle, "data as of" (record end of `smard.csv`), repo link.
-- **Demo mode:** hides detail expanders, collapses beat SMARD's blocks 5–8, hides Plotly toolbars.
-- **`header(title, takeaway)`**, **`next_page(page)`**, and **`data_check()`** on Home (every file
-  the app reads: found / missing, modified, producing notebook; from `model_results.SOURCES`).
-
-### 2.4 Caching and missing files
-
-- `@st.cache_data` keyed on the file's modification time, so a re-export shows without "Clear cache".
-- Cache derived tables (`rolling_threshold`, Background pivots, `risk_scores`, per-bin quantiles),
-  not figures; the pages only plot. `usecols=` for the 14 MB hourly export. No `cache_resource`.
-- A missing export stops **only its section** (`get_or_info` → `st.info("Run <notebook> ...")`);
-  `get_or_stop` only for files a whole page needs (`smard.csv`).
-
-### 2.5 Style and content rules
-
-- Colours only from `viz_helpers.py` (PowerRangers palette, `chart-style` skill); one series = one
-  colour everywhere; SMARD dashed slate; high risk warm, low risk cool. Theme: `base = "light"`,
-  navy primary, no custom CSS.
-- Plotly on the model pages and the context intro (`style_plotly`); matplotlib stays on the EDA.
-- Every number computed (f-strings over the data); a unit on every axis; at most 3 bullets per
-  block (`interpretation-style`); notebook names stay out of the UI; units per CLAUDE.md.
-
-## 3. Next steps
-
-| Step | Work | Sub-spec | Needs |
-|---|---|---|---|
-| 0 | Produce the missing exports: `ensemble_*.csv`, `model_risk_labels_*.csv`, `model_rebap_cost_hourly.csv` (§1.7) | — | about 1 h compute |
-| 1 | Skeleton: navigation, layout, sidebar, theme, data check, fallbacks, mtime caching. **Built 2026-10-06, not committed** | — | — |
-| 2 | Home (KPI row, tour, computed text) | `Streamlit-v3.2-home.md` | 1 |
-| 3 | Where we beat SMARD (bands, reBAP, ensemble) | `Streamlit-v3.3-beat-smard.md` | 0, 1 |
-| 5 | Background (intro, findings, computed shares) | `Streamlit-v3.5-background.md` | 1 |
-| 6 | Method (tabs, model cards, weights) | `Streamlit-v3.6-method.md` | 1 |
-| 7 | Team / About | `Streamlit-v3.7-about.md` | names and roles |
-| 8 | Rehearsal + `streamlit/DEMO.md` (run order, presets, a fallback screenshot per page) | — | all |
-
-- Steps 2–3 first: Home and the core result. Each sub-spec runs with `spec-run-section-loop`.
-  Branch per step [ASSUMPTION: `feature/streamlit-v3-<step>`].
-- **Step 1 as built:** `layout.py` holds `TOUR`, `sidebar()`, `header()`, `next_page()`; a
-  model-set radio was built and removed again when `-magc` was dropped; the risk calendar still shows
-  the Plotly toolbar in demo mode; derived-table caching comes with each page's rewrite.
-- **Sub-spec sections:** Goal (takeaway verbatim) · Content blocks (component, data, computed values)
-  · Interaction and state · Demo mode · Missing data (per block) · Text (headings, bullets,
-  f-string placeholders) · Performance · Acceptance criteria (renders with and without each export,
-  demo mode, no hardcoded numbers, units, colours from `viz_helpers.py`, "Next →") · Out of bounds.
-- **Follow-ups for the team:** CLAUDE.md's "no trained model shown yet" and the import bug are out
-  of date; the `chart-style` skill places `viz_helpers.py` at the repo root (it is in `streamlit/`).
+- **Follow-ups found in review:** three region tints are hex strings in pages (`home.py`
+  `GAP_TINT`, `method.py` `KNOWN_TINT` / `TARGET_TINT`, one in `background.py`); they belong in
+  `viz_helpers.py` per the `chart-style` skill.
+- **Team checks:** each card on Team / About; Method ① wording ("refitted every week", "learns
+  from the three years before"); `CUTOFF_HOUR` once the actuals lag is settled; `LICENSE` still
+  names neuefische GmbH (template); whether to credit Mayank (initial commit, uv setup).
