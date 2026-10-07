@@ -98,10 +98,11 @@ def label(row):
 
 
 def line(row, **overrides):
-    """Plotly line of a row: the model's colour, dotted for a non-default split."""
+    """Plotly line of a row: the model's colour and dash (direct dotted), dash-dot for a
+    non-default split."""
     style = model_line("smard" if row == SMARD_ROW else row[0])
     if row != SMARD_ROW and row[1] not in (CANDIDATE_SPLIT, "none"):
-        style["dash"] = "dot"
+        style["dash"] = "dashdot"
     return style | overrides
 
 
