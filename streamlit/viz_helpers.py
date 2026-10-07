@@ -175,21 +175,43 @@ def year_colors(years, cmap="viridis"):
 
 
 # --- Model pages (Plotly) ---------------------------------------------------------------------
-# Label and colour per model key, from PALETTE. A model keeps its colour on every page. The
-# three models that appear together most (the overall picks) take slots 1-3, which pass
-# all-pairs. The risk picks (xgb_hybrid, random_forest_hybrid) are plum + teal: clearly apart for
-# most viewers, but only ΔE 5.5 under deuteranopia, so the Risk days page gives xgb_hybrid a
-# second cue (markers + direct label). The viz notebooks keep their older colours.
+# Label, colour and line style per model key. A model keeps its colour on every page. Colours:
+# option B of the 2026-10-07 review, chosen so any two models can share a chart (weakest pair
+# OKLab ΔE 13.5 normal / 6.5 deuteranopia, all-pairs, against 5.3 / 3.2 before). Teal and blue
+# stay from PALETTE; the other four are model-only colours, so indigo (slot 6) is "Wind + solar"
+# only. Direct models are drawn dotted, hybrids solid: the architecture never rests on colour
+# alone. The viz notebooks keep their older colours.
+MODEL_COLOR = {
+    "random_forest_hybrid": PALETTE[0],  # teal
+    "lgbm_direct": PALETTE[1],  # blue
+    "linear_direct": "#349F3A",  # green
+    "xgb_hybrid": "#CD74B9",  # pink
+    "lgbm_hybrid": "#A3394E",  # wine
+    "xgb_direct": "#9257E0",  # violet
+}
+DIRECT_DASH = "dot"
 MODEL_STYLE = {
     "random_forest_hybrid": {
         "label": "Random forest hybrid",
-        "color": PALETTE[0],
-    },  # teal
-    "lgbm_direct": {"label": "LightGBM direct", "color": PALETTE[1]},  # blue
-    "linear_direct": {"label": "Ridge direct", "color": PALETTE[2]},  # deep amber
-    "xgb_hybrid": {"label": "XGBoost hybrid", "color": PALETTE[3]},  # plum
-    "lgbm_hybrid": {"label": "LightGBM hybrid", "color": PALETTE[4]},  # vermillion
-    "xgb_direct": {"label": "XGBoost direct", "color": PALETTE[5]},  # indigo
+        "color": MODEL_COLOR["random_forest_hybrid"],
+    },
+    "lgbm_direct": {
+        "label": "LightGBM direct",
+        "color": MODEL_COLOR["lgbm_direct"],
+        "dash": DIRECT_DASH,
+    },
+    "linear_direct": {
+        "label": "Ridge direct",
+        "color": MODEL_COLOR["linear_direct"],
+        "dash": DIRECT_DASH,
+    },
+    "xgb_hybrid": {"label": "XGBoost hybrid", "color": MODEL_COLOR["xgb_hybrid"]},
+    "lgbm_hybrid": {"label": "LightGBM hybrid", "color": MODEL_COLOR["lgbm_hybrid"]},
+    "xgb_direct": {
+        "label": "XGBoost direct",
+        "color": MODEL_COLOR["xgb_direct"],
+        "dash": DIRECT_DASH,
+    },
     "sarimax_fourier": {
         "label": "SARIMAX + Fourier",
         "color": "#7385CB",
@@ -223,7 +245,7 @@ BIN_LABEL = {
 }
 
 # Risk-label thresholds, flagged hours and outcome cells per (direction, basis), never a model's
-# colour: light tints (warm = high, cool = low), each at least colour-blind ΔE 13.7 from every
+# colour: light tints (warm = high, cool = low), each at least colour-blind ΔE 8.9 from every
 # model line incl. the ensemble. They are below 3:1 on white, so a threshold line needs a label.
 RISK_COLOR = {
     ("high", "rolling"): "#E8B3A7",  # light vermillion
