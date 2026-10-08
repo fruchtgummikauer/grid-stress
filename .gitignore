@@ -145,3 +145,6 @@ mlflow.db
 
 # VSCode Makefile
 .vscode
+
+# Presentation output
+images/presentation/
