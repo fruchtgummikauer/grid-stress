@@ -313,9 +313,9 @@ with st.expander("Words used in this app"):
 - **Day-ahead forecast** — a forecast made the day before, for every hour of the next day.
 - **Redispatch** — grid operators telling power plants to produce more or less at short notice,
   to keep the grid stable.
-- **Green shortage / green surplus** — short for *too little* / *too much green power*: the hours
-  with the highest residual load, and the hours with the lowest (often below zero). A model labelled
-  "best in green surplus" has the smallest misses in those hours.
+- **Too little / too much green power** — the hours with the highest residual load, and the hours
+  with the lowest (often below zero). A model labelled "best with too much green power" has the
+  smallest misses in those hours.
 - **Ensemble** — a forecast that combines several models (and SMARD's own forecast) as a weighted
   average.
 """)

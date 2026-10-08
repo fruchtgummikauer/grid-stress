@@ -28,8 +28,8 @@ from viz_helpers import COLORS, model_line, model_pattern
 OURS_NAME = "Our best model overall"
 DIRECTION_NAME = {d: text[0] for d, text in DIRECTION_TEXT.items()}
 SIDE_CATEGORY = {"high": "high_extreme", "low": "low_extreme"}
-# Short role per extreme for legends and menus, e.g. "Random forest hybrid (best in green surplus)"
-SHORT_SIDE = {"high": "in green shortage", "low": "in green surplus"}
+# Role per extreme for legends and menus, e.g. "XGBoost hybrid (best with too little green power)"
+SHORT_SIDE = {"high": "with too little green power", "low": "with too much green power"}
 # "highest 1 %" / "lowest 1 %": the bracket of the situation name
 SIDE_HOURS = {
     side: SITUATION[c].split("(")[1].rstrip(")") for side, c in SIDE_CATEGORY.items()
@@ -130,7 +130,7 @@ def load_lineup() -> Lineup:
         roles.setdefault(row, []).append(SHORT_SIDE[side])
     ours = {
         row: "best " + " & ".join(r) for row, r in roles.items()
-    }  # e.g. "best overall & in green surplus"
+    }  # e.g. "best overall & with too much green power"
     all_rows = [row for row in acc.errors if row != SMARD_ROW]
     # "Compare models" opens on our top 3 by average miss plus Ridge, the simplest model, as a yardstick
     ridge = ("linear_direct", CANDIDATE_SPLIT)
