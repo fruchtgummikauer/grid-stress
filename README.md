@@ -1,172 +1,167 @@
-# Our Setup Notes
+# ⚡ Grid Stress
 
-## 1. Set Up the .env file for Netztransparenz.de
+Day-ahead forecasting of the **residual load** in the German power grid from public
+[SMARD](https://www.smard.de) data, to flag the days when the grid is at risk of transmission
+system operator (TSO) intervention.
 
-We get the `reBAP` data from [the API of "netztransparenz.de"](https://api-portal.netztransparenz.de). For this API you need a free acount.
+Capstone project of the neuefische Data Science bootcamp.
 
-> [!Important]
-> Create your **own account first** - register ➡️[here](https://api-portal.netztransparenz.de/registration)⬅️
+## Problem
 
-After login create a **new client** in "[my clients](https://api-portal.netztransparenz.de/my-clients)"
+The **residual load** is the electricity demand left after wind and solar generation:
+`grid load − (wind + solar)`. It must be covered by conventional plants, storage or imports.
+Its extremes are where the grid gets stressed:
+
+- **High residual load** — little wind and sun, high demand: imports and tight reserve margins.
+- **Negative residual load** — renewables exceed demand: negative prices and downward redispatch.
+
+A better day-ahead forecast of the residual load means earlier warning of these days.
+
+## Approach
+
+- **Benchmark:** SMARD's own `Forecast Residual Load`.
+- **Model Output Statistics:** our models post-process SMARD's component forecasts (grid load,
+  wind + solar) with actuals, calendar and capacity features. The claim is *"we reduce SMARD's
+  error by X %"*, not *"we forecast better than the TSOs"*.
+- **Forecast setting:** the forecast is issued at 18:00 on the day before (when SMARD's wind and
+  solar forecast is published); actuals arrive with a 2 h lag, so the data cutoff is 16:00.
+- **Scope:** generation features are wind and solar only, the only sources with published
+  day-ahead forecasts and the largest variable ones.
+- **Models:** seasonal naive baseline, Ridge, LightGBM, XGBoost and random forest (direct and
+  hybrid variants), plus ensembles of these. Model decisions are made on a validation year; a
+  separate test year only confirms them.
+- **Risk labels:** high and low risk days are two independently thresholded directions, using a
+  trailing 365-day quantile of the residual load.
+- **Cost:** after modelling, the advantage over SMARD is priced at the imbalance price (reBAP).
+
+## Data
+
+| Source | Content | Access |
+| --- | --- | --- |
+| [SMARD](https://www.smard.de) (Bundesnetzagentur) | hourly grid load, generation, forecasts and installed capacity since 2019 | public API, no key |
+| [netztransparenz.de](https://www.netztransparenz.de) | reBAP imbalance price, 15 min | free account, OAuth2 (see below) |
+
+`data/` is gitignored. Only the trained model saves in `data/models/<model_key>/` are committed.
+All other files are produced by the notebooks (see [Reproduce the pipeline](#reproduce-the-pipeline)).
+
+SMARD data: [terms of use](https://www.smard.de/en/datennutzung), CC BY 4.0.
+
+## Setup
+
+The environment is managed with [uv](https://docs.astral.sh/uv/). Do not use `pip install`.
+Details: [UV_SETUP.md](UV_SETUP.md).
+
+```bash
+make setup      # uv sync --all-groups
+make lab        # Jupyter Lab
+make format     # black
+```
+
+Add dependencies with `uv add <pkg>` (runtime) or `uv add --group dev <pkg>` (notebooks, tooling).
+
+### reBAP credentials (netztransparenz.de)
+
+The reBAP data needs a free account on the
+[netztransparenz API portal](https://api-portal.netztransparenz.de).
+
+1. [Register](https://api-portal.netztransparenz.de/registration) your own account.
+2. Create a new client under [my clients](https://api-portal.netztransparenz.de/my-clients).
 
 > [!Warning]
-> When creating a new client you have to immediatly copy the `client secret`.
->
-> You can't access it again!
+> Copy the `client secret` right away. You cannot see it again later.
 
-Create the real environment file with:
+3. Create your environment file and fill in the client id and secret:
 
 ```bash
 cp .env.example .env
 ```
 
-Then open `.env` and replace the placeholders with the values from your client.
-
 > [!CAUTION]
-> The `.env` file holds credentials and must never be committed.
->
-> It is already listed in `.gitignore`.
->
-> Only `.env.example`, with placeholders, belongs in the repo.
+> `.env` holds credentials and must never be committed (it is in `.gitignore`).
+> Never paste credentials into a notebook.
 
----
+## Reproduce the pipeline
 
-# Template Setup Notes
+Run the notebooks in this order. Each one writes its exports to `data/` when `EXPORT_ENABLED` is
+on.
 
-Here you find a Skeleton project for building a simple model in a python script or notebook and log the results on MLFlow.
+| Step | Notebook | Writes |
+| --- | --- | --- |
+| 1. Download data | [API-connection.ipynb](notebooks/API-connection.ipynb) | `data/smard.csv`, `data/rebap.csv` |
+| 2. Risk labels | [risk-definition.ipynb](notebooks/03_risk_classification/risk-definition.ipynb) | `data/risk_classification/risk_labels_*.csv` |
+| 3. SMARD benchmark | [forecast-metrics-claude.ipynb](notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb) | `data/metrics/smard_*.csv` |
+| 4. Models | [regression-models-claude.ipynb](notebooks/05_modeling/regression-models-claude.ipynb) | `data/models/model_*.csv`, model saves |
+| 5. Ensemble | [ensemble-claude.ipynb](notebooks/05_modeling/ensemble-claude.ipynb) | `data/models/ensemble_*.csv` |
+| 6. Best models vs SMARD | [visualization-01-regression-best-models.ipynb](notebooks/05_modeling/visualization-01-regression-best-models.ipynb) | – |
+| 7. Risk labels on the models | [visualization-02-classification-risk-labels.ipynb](notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb) | `data/risk_classification/model_risk_labels_*.csv` |
+| 8. reBAP cost | [visualization-03-rebap-cost.ipynb](notebooks/05_modeling/visualization-03-rebap-cost.ipynb) | `data/models/model_rebap_cost_hourly.csv` |
 
-There are two ways to do it: 
-* In Jupyter Notebooks:
-    We train a simple model in the [jupyter notebook](notebooks/EDA-and-modeling.ipynb), where we select only some features and do minimal cleaning. The hyperparameters of feature engineering and modeling will be logged with MLflow
+Notes:
 
-* With Python scripts:
-    The [main script](modeling/train.py) will go through exactly the same process as the jupyter notebook and also log the hyperparameters with MLflow
+- The download range is set by `START` / `END` in `API-connection.ipynb` (`END` is exclusive).
+- After a new download, re-run **every** later step. The visualization notebooks stop when their
+  inputs come from different runs.
+- Models notebook: per model, `load_saved` fits from scratch (`False`), refits the saved tuning
+  (`"config"`, works on any data) or loads the saved results (`"results"`, same data snapshot
+  only). A full fit takes about 30 min on 16 cores. `SAVE_MODELS = True` writes new saves.
+  `USE_GPU` runs XGBoost on a GPU if one is found (results then differ slightly from CPU).
+- The ensemble reads the model saves (no refit) and takes about 4 min.
 
-Example Data used is the [coffee quality dataset](https://github.com/jldbc/coffee-quality-database).
+## Streamlit app
 
-## Setup
+An interactive tour of the project: when the grid is under pressure, how we forecast, whether we
+beat SMARD, a page to try it yourself, what it is worth, and who we are.
 
-```bash
-make setup
-
-# or directly
-uv sync --all-groups
-```
-
-That creates `.venv/`, downloads a suitable Python (`>=3.11`) if you don't have one, and installs
-every dependency pinned in `uv.lock` so the whole team gets identical versions.
-
-Dependencies are declared in `pyproject.toml`: the runtime set under `[project.dependencies]`
-(what deployment of the model or a dashboard needs) and the development tools — JupyterLab,
-pytest, black, nbdime — under the `dev` group. Use `uv sync` for runtime only, or
-`uv sync --all-groups` for everything.
-
-See [UV_SETUP.md](UV_SETUP.md) for the full guide: adding and upgrading packages, pinning the
-Python version, and troubleshooting.
-
-The MLFLOW URI should **not be stored on git**, you have two options, to save it locally in the `.mlflow_uri` file:
-
-```BASH
-echo http://127.0.0.1:5000/ > .mlflow_uri
-```
-
-This will create a local file where the uri is stored which will not be added on github (`.mlflow_uri` is in the `.gitignore` file). Alternatively you can export it as an environment variable with
+Run it **from the repo root**, so the theme in `.streamlit/config.toml` is found:
 
 ```bash
-export MLFLOW_URI=http://127.0.0.1:5000/
+uv run streamlit run streamlit/streamlit_app.py
 ```
 
-This links to your local mlflow, if you want to use a different one, then change the set uri.
+The app reads the exports in `data/`, so run the [pipeline](#reproduce-the-pipeline) first. The
+*Who are we?* page has a data check that lists every file the app needs, whether it was found, and
+which notebook produces it.
 
-The code in the [config.py](modeling/config.py) will try to read it locally and if the file doesn't exist will look in the env var.. IF that is not set the URI will be empty in your code.
+## Repository structure
 
-## Usage
-
-### Creating an MLFlow experiment
-
-You can do it via the GUI or via [command line](https://www.mlflow.org/docs/latest/tracking.html#managing-experiments-and-runs-with-the-tracking-service-api) if you use the local mlflow:
-
-```bash
-uv run mlflow experiments create --experiment-name 0-template-ds-modeling
+```text
+notebooks/
+  API-connection.ipynb        data download (SMARD + reBAP)
+  01_eda/                     exploratory analysis (team-EDA.ipynb is the shared one)
+  02_forecast_metrics/        SMARD's forecast errors: the benchmark
+  03_risk_classification/     risk day definition and labels
+  04_feature_engineering/     feature exploration and documentation
+  05_modeling/                regression models, ensemble, result visualizations
+streamlit/                    Streamlit app (pages in app_pages/, shared parts in components/)
+data/                         gitignored, except the model saves in data/models/<model_key>/
 ```
 
-Check your local mlflow
+Notebook name suffixes: no suffix = adopted by the team; `-claude` = reference notebook generated
+from a spec in `.claude/specs/`; `-<name>` = a team member's own exploration.
 
-```bash
-uv run mlflow ui
-```
+## Contributing
 
-and open the link [http://127.0.0.1:5000](http://127.0.0.1:5000)
+- Work on `feature/*` branches off `main` and open a pull request.
+- Notebooks are JSON, so resolve merge conflicts with **nbdime** (in the `dev` group):
 
-This will throw an error if the experiment already exists. **Save the experiment name in the [config file](modeling/config.py).**
-
-In order to train the model and store test data in the data folder and the model in models run:
-
-```bash
-uv run python -m modeling.train
-
-# or
-make train
-```
-
-In order to test that predict works on a test set you created run:
-
-```bash
-uv run python -m modeling.predict models/linear data/X_test.csv data/y_test.csv
-
-# or
-make predict
-```
-
-## About MLFLOW -- delete this when using the template
-
-MLFlow is a tool for tracking ML experiments. You can run it locally or remotely. It stores all the information about experiments in a database.
-And you can see the overview via the GUI or access it via APIs. Sending data to mlflow is done via APIs. And with mlflow you can also store models on S3 where you version them and tag them as production for serving them in production.
-![mlflow workflow](images/0_general_tracking_mlflow.png)
-
-### MLFlow GUI
-
-You can group model trainings in experiments. The granularity of what an experiment is up to your usecase. Recommended is to have an experiment per data product, as for all the runs in an experiment you can compare the results.
-![gui](images/1_gui.png)
-
-### Code to send data to MLFlow
-
-In order to send data about your model you need to set the connection information, via the tracking uri and also the experiment name (otherwise the default one is used). One run represents a model, and all the rest is metadata. For example if you want to save train MSE, test MSE and validation MSE you need to name them as 3 different metrics.
-If you are doing CV you can set the tracking as nested.
-![mlflow code](images/2_code.png)
-
-### MLFlow metadata
-
-There is no constraint between runs to have the same metadata tracked. I.e. for one run you can track different tags, different metrics, and different parameters (in cv some parameters might not exist for some runs so this .. makes sense to be flexible).
-
-- tags can be anything you want.. like if you do CV you might want to tag the best model as "best"
-- params are perfect for hypermeters and also for information about the data pipeline you use, if you scaling vs normalization and so on
-- metrics.. should be numeric values as these can get plotted
-
-![mlflow metadata](images/3_metadata.png)
-
-## Development Notes
-
-### Handling Merge Conflicts in Jupyter Notebooks
-
-When working collaboratively, merge conflicts may occur in `.ipynb` files because notebooks are stored as JSON.  
-To simplify resolving these conflicts, this project uses **nbdime** (already included in the `dev` dependency group).
-
-#### Enable once
-After setting up your environment, enable nbdime for Git:
 ```bash
 nbdime config-git --enable
 ```
 
-#### When a merge conflict occurs
-Run the following command to open the merge tool:
+Enable it once per clone. When a conflict occurs, open the merge tool and pick the cells side by
+side:
+
 ```bash
 nbdime mergetool
 ```
-A browser window will open showing both notebook versions side by side.
-Select the correct cells, save, and then complete the merge:
-```bash
-git add <notebook>.ipynb
-git commit -m "Resolve notebook merge conflict"
-```
-That’s it — clean merges for notebooks!
+
+Then `git add` the notebook and commit.
+
+## Team
+
+Robert, Marco, Hari and Monica, at the [neuefische](https://www.neuefische.de) Data Science
+bootcamp, with [Claude Code](https://claude.com/claude-code) as the intern.
+
+## License
+
+[MIT](LICENSE)
