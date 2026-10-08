@@ -4,11 +4,18 @@
 the sidebar of every page and keep their state across pages (widget keys = session_state keys).
 """
 
+from pathlib import Path
+
 import streamlit as st
 
 from data_loading import load_smard
+from viz_helpers import is_dark
 
 REPO_URL = "https://github.com/fruchtgummikauer/grid-stress"
+# The team logo (PowerRangers): wordmark and house icon, each with a dark-theme version (light
+# lettering, brighter house) so it stays readable on the navy background
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
+LOGO_ICON = str(ASSETS / "logo_icon.png")  # browser tab icon
 
 # The tour (§1.1): path, title, icon, url. The order is the sidebar and "Next →" order;
 # streamlit_app.py builds the navigation from this table. Titles are short questions (team
@@ -50,8 +57,15 @@ def current_page():
     return next((path for path, _, _, page_url in TOUR if page_url == url), TOUR[0][0])
 
 
+def logo(icon=False):
+    """Path of the team logo, or its house icon, in the active theme."""
+    dark = "_dark" if is_dark() else ""
+    return str(ASSETS / (f"logo_icon{dark}.png" if icon else f"logo{dark}.png"))
+
+
 def sidebar():
-    """Demo-mode toggle, data date, repo link."""
+    """Team logo, demo-mode toggle, data date, repo link."""
+    st.logo(logo(), size="large", icon_image=logo(icon=True))
     st.session_state.setdefault("demo_mode", False)
 
     with st.sidebar:
