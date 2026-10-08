@@ -1,9 +1,10 @@
-"""Risk days — does our forecast flag the days the grid is at risk, compared with SMARD's?
+"""Risk days on "Do we beat SMARD?" — does our forecast flag the days the grid is at risk?
 
 Ported from `notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb` (spec 10)
-§3–§5 and §7, per `.claude/specs/Streamlit-draft.md` §17 (Behaviour 10–15). Flags, thresholds and
-ranges come from spec 10's export through `model_results.py` — nothing is recomputed, and an
-empty flag stays "not evaluable", never "not at risk".
+§3–§5 and §7; it was the separate Risk days page until the team folded it into "Where we beat
+SMARD" (2026-10-07). Flags, thresholds and ranges come from spec 10's export through
+`model_results.py` — nothing is recomputed, and an empty flag stays "not evaluable", never
+"not at risk". The page calls `risk_days_section(labels)`; every chart function takes the labels.
 """
 
 import numpy as np
@@ -12,15 +13,14 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components.layout import next_page
+from components.layout import title_of
+from components.naming import SMARD_NAME
 from model_results import (
     BASES,
     default_zoom_weeks,
     flagged_span,
     german_holidays,
-    get_or_stop,
     is_set,
-    load_risk_labels,
     outcome,
     persistent_hours,
     risk_scores,
@@ -35,54 +35,34 @@ from viz_helpers import (
     model_label,
     model_line,
     style_plotly,
+    themed,
 )
 
-st.set_page_config(page_title="Risk days — Grid Stress", page_icon="🚨", layout="wide")
-st.title("Do we spot the risk days?")
-
-labels = get_or_stop(load_risk_labels)
-if labels.problems:
-    st.error("\n".join(f"- {problem}" for problem in labels.problems))
-    st.stop()
-
-daily, hourly = labels.daily, labels.hourly
-DAYS = daily.index
-EVALUABLE = daily["evaluable"]
-HOLIDAYS = german_holidays(DAYS)
-ZOOMS = default_zoom_weeks(labels)
 MARGIN_WINDOW = (
     10_000  # MWh: axis range of the day-margin chart around 0 (spec 10 settings)
 )
+DEFAULT_BASIS = {"high": "rolling", "low": "zero"}  # as in the page's closing summary
 
 DIRECTION_TEXT = {
     "high": (
-        "High risk",
-        "residual load above the trailing-year P99: little wind and sun for the demand",
+        "Too little green power (high)",
+        "residual load higher than in all but 1 % of the hours of the past twelve months: little wind and sun for the demand",
     ),
     "low": (
-        "Low risk",
-        "residual load below the trailing-year P1 (or below 0 MWh): renewable oversupply",
+        "Too much green power (low)",
+        "residual load lower than in all but 1 % of the hours of the past twelve months, or below zero: wind and solar exceed demand",
     ),
 }
-BASIS_TEXT = {"rolling": "relative: trailing-year P1", "zero": "physical: below 0 MWh"}
+BASIS_TEXT = {
+    "rolling": "lowest 1 % of the past twelve months",
+    "zero": "below zero",
+}
 RULE_TEXT = {"any": "at least one hour", "3h": "at least 3 h in a row"}
-SOURCE_NAME = {"actual": "Actual", "smard": model_label("smard")}
-
-st.markdown(
-    f"A day is a **risk day** when the actual residual load crosses the project's risk threshold "
-    f"(see the Method page). Here the same thresholds are applied to our forecast and to "
-    f"SMARD's, issued the day before, over the test window **{DAYS[0]:%d %b %Y} – {DAYS[-1]:%d %b %Y}** "
-    f"({int(EVALUABLE.sum())} days that can be scored). A forecast **catches** a risk day when it "
-    "flags it too; it **misses** it when it does not, and raises a **false alarm** when it flags a "
-    "day the actual does not."
-)
-if (~EVALUABLE).any():
-    st.caption(
-        f"{int((~EVALUABLE).sum())} days cannot be scored (incomplete data) and are left out."
-    )
+# The same names as on the other pages
+SOURCE_NAME = {"actual": "What really happened", "smard": SMARD_NAME}
 
 
-def source_label(source, direction):
+def source_label(labels, source, direction):
     """Actual, SMARD, or the direction's model."""
     return (
         model_label(labels.picks[direction])
@@ -91,7 +71,7 @@ def source_label(source, direction):
     )
 
 
-def source_color(source, direction):
+def source_color(labels, source, direction):
     key = labels.picks[direction] if source == "model" else source
     return MODEL_STYLE[key]["color"]
 
@@ -99,54 +79,56 @@ def source_color(source, direction):
 # ============================================================================
 # Scorecard (spec 10 §3)
 # ============================================================================
-def scorecard(direction, basis, rule):
+def scorecard(labels, direction, basis, rule):
     scores = risk_scores(labels, direction, basis, rule)
     ours, smard = scores["model"], scores["smard"]
     n = ours["actual days"]
-    model = source_label("model", direction)
+    model = source_label(labels, "model", direction)
     if n == 0:
         st.info(f"The actual has no risk day of this kind in the test window.")
         return scores
     st.markdown(
-        f"Of the **{n} actual risk days**, **{model}** caught **{ours['hit days']}** and SMARD "
+        f"Of the **{n} actual risk days**, **{model}** saw **{ours['hit days']}** coming and SMARD "
         f"**{smard['hit days']}**; {model} raised **{ours['false-alarm days']} false alarms**, "
         f"SMARD **{smard['false-alarm days']}**."
     )
     cards = st.columns(4)
     cards[0].metric(
-        "Risk days caught",
+        "Risk days it saw coming",
         f"{ours['hit days']} of {n}",
         f"{ours['hit days'] - smard['hit days']:+d} days vs SMARD",
-        help=f"Recall {ours['recall %']:.0f} % (SMARD {smard['recall %']:.0f} %).",
+        help=f"Caught {ours['recall %']:.1f} % of the risk days (SMARD {smard['recall %']:.1f} %).",
     )
     cards[1].metric(
-        "Risk days missed",
+        "Risk days it missed",
         f"{ours['missed days']}",
-        f"{ours['missed days'] - smard['missed days']:+d} vs SMARD",
+        f"{ours['missed days'] - smard['missed days']:+d} days vs SMARD",
         delta_color="inverse",
     )
-    precision = "—" if np.isnan(ours["precision %"]) else f"{ours['precision %']:.0f} %"
+    precision = "—" if np.isnan(ours["precision %"]) else f"{ours['precision %']:.1f} %"
     cards[2].metric(
         "False alarms",
         f"{ours['false-alarm days']}",
-        f"{ours['false-alarm days'] - smard['false-alarm days']:+d} vs SMARD",
+        f"{ours['false-alarm days'] - smard['false-alarm days']:+d} days vs SMARD",
         delta_color="inverse",
-        help=f"Precision {precision}: share of flagged days that were real risk days.",
+        help=f"{precision} of its warnings were real risk days.",
     )
     cards[3].metric(
-        "Risk hours missed",
+        "Risk hours it missed",
         f"{ours['missed hours']}",
-        f"{ours['missed hours'] - smard['missed hours']:+d} vs SMARD",
+        f"{ours['missed hours'] - smard['missed hours']:+d} hours vs SMARD",
         delta_color="inverse",
         help=(
-            f"Hours: {ours['hit hours']} caught, {ours['false-alarm hours']} false alarms "
-            f"(SMARD {smard['hit hours']} / {smard['false-alarm hours']}). Hours have no 3 h rule."
+            f"Hours: {ours['hit hours']} seen coming, {ours['false-alarm hours']} false alarms "
+            f"(SMARD {smard['hit hours']} / {smard['false-alarm hours']}). Hours have no 3 h rule. "
+            f"Counted over every hour with a risk label ({len(labels.hourly):,}); the hour charts "
+            "above use only hours where every model has a forecast, so their counts can differ by one or two."
         ),
     )
     if n < 20:
         st.caption(
-            f"Small numbers: {n} risk days in one test year, so one day moves the catch rate by "
-            f"{100 / n:.0f} percentage points."
+            f"Small numbers: {n} risk days in one test year, so one day moves the share seen coming by "
+            f"{100 / n:.1f} percentage points."
         )
     return scores
 
@@ -154,6 +136,14 @@ def scorecard(direction, basis, rule):
 # ============================================================================
 # Risk calendar (spec 10 §4.1 / §5.1)
 # ============================================================================
+# Display names of the outcomes (the export keeps hit / miss / false alarm / quiet)
+OUTCOME_NAME = {
+    "hit": "saw it coming",
+    "miss": "missed it",
+    "false alarm": "false alarm",
+    "quiet": "ordinary day",
+    "not evaluable": "can't be scored",
+}
 OUTCOME_MARKER = {  # hit = filled, miss = outline, false alarm = crossed outline (readable without colour)
     "hit": {"symbol": "square"},
     "miss": {"symbol": "square-open"},
@@ -163,14 +153,16 @@ OUTCOME_MARKER = {  # hit = filled, miss = outline, false alarm = crossed outlin
 }
 
 
-def risk_calendar(direction, basis, rule):
+def risk_calendar(labels, direction, basis, rule):
+    days = labels.daily.index
+    days_off = german_holidays(days)
     tail = RISK_COLOR[(direction, basis)]
-    first_monday = week_of(DAYS[:1])[0]
-    column = np.asarray((DAYS - first_monday).days // 7)
-    weekday = np.asarray(DAYS.weekday)
+    first_monday = week_of(days[:1])[0]
+    column = np.asarray((days - first_monday).days // 7)
+    weekday = np.asarray(days.weekday)
     actual = labels.flag("actual", direction, basis, rule)
     sustained = is_set(labels.flag("actual", direction, basis, "3h")).to_numpy()
-    holiday = np.array([day in HOLIDAYS for day in DAYS])
+    holiday = np.array([day in days_off for day in days])
     color = {
         "hit": tail,
         "miss": tail,
@@ -190,17 +182,17 @@ def risk_calendar(direction, basis, rule):
     for s in sources:
         counts = results[s].value_counts()
         titles.append(
-            f"{source_label(s, direction)}: {counts.get('hit', 0)} caught, {counts.get('miss', 0)} missed, "
+            f"{source_label(labels, s, direction)}: saw {counts.get('hit', 0)} coming, missed {counts.get('miss', 0)}, "
             f"{counts.get('false alarm', 0)} false alarms"
         )
     fig = make_subplots(rows=2, cols=1, subplot_titles=titles, vertical_spacing=0.14)
     for r, s in enumerate(sources, start=1):
         spans = [
             "<br>".join(
-                f"{source_label(src, direction)}: {flagged_span(labels, src, direction, basis, day, rule)}"
+                f"{source_label(labels, src, direction)}: {flagged_span(labels, src, direction, basis, day, rule)}"
                 for src in ("actual", "model", "smard")
             )
-            for day in DAYS
+            for day in days
         ]
         for name in OUTCOME_MARKER:
             mask = (results[s] == name).to_numpy()
@@ -211,7 +203,7 @@ def risk_calendar(direction, basis, rule):
                     x=column[mask],
                     y=weekday[mask],
                     mode="markers",
-                    name=name,
+                    name=OUTCOME_NAME[name],
                     legendgroup=name,
                     showlegend=r == 1,
                     marker={
@@ -222,11 +214,11 @@ def risk_calendar(direction, basis, rule):
                     },
                     customdata=np.column_stack(
                         [
-                            DAYS[mask].strftime("%a %d %b %Y"),
+                            days[mask].strftime("%a %d %b %Y"),
                             np.array(spans, dtype=object)[mask],
                         ]
                     ),
-                    hovertemplate=f"%{{customdata[0]}}<br><b>{name}</b><br>flagged hours:<br>%{{customdata[1]}}<extra></extra>",
+                    hovertemplate=f"%{{customdata[0]}}<br><b>{OUTCOME_NAME[name]}</b><br>flagged hours:<br>%{{customdata[1]}}<extra></extra>",
                 ),
                 row=r,
                 col=1,
@@ -268,7 +260,7 @@ def risk_calendar(direction, basis, rule):
             row=r,
             col=1,
         )
-    month_starts = pd.date_range(DAYS[0], DAYS[-1], freq="MS")
+    month_starts = pd.date_range(days[0], days[-1], freq="MS")
     fig.update_xaxes(
         tickvals=[(m - first_monday).days // 7 for m in month_starts],
         ticktext=[f"{m:%b %y}" for m in month_starts],
@@ -304,9 +296,9 @@ def risk_calendar(direction, basis, rule):
         },
         margin={"l": 50, "r": 20, "t": 80, "b": 40},
     )
-    st.plotly_chart(fig, key=f"calendar_{direction}_{basis}_{rule}")
+    st.plotly_chart(themed(fig), key=f"calendar_{direction}_{basis}_{rule}")
     st.caption(
-        "Filled square: risk day caught. Open square: risk day missed. Crossed square: false alarm. "
+        "Filled square: saw it coming. Open square: missed it. Crossed square: false alarm. "
         "Grey: an ordinary day, correctly not flagged. Olive frame: public holiday. Dot: the actual "
         "stayed past the threshold for at least 3 h."
     )
@@ -315,22 +307,28 @@ def risk_calendar(direction, basis, rule):
 # ============================================================================
 # Zoom week (spec 10 §4.2 / §5.2)
 # ============================================================================
-def zoom_week(direction, basis):
+def zoom_week(labels, direction, basis):
+    daily, hourly = labels.daily, labels.hourly
+    days = daily.index
+    days_off = german_holidays(days)
+    zooms = default_zoom_weeks(labels)
     tail = RISK_COLOR[(direction, basis)]
-    mondays = sorted(set(week_of(DAYS)))
+    mondays = sorted(set(week_of(days)))
     mondays = [
-        m for m in mondays if m + pd.Timedelta(days=6) <= DAYS[-1] and m >= DAYS[0]
+        m for m in mondays if m + pd.Timedelta(days=6) <= days[-1] and m >= days[0]
     ]
     suggested = {
-        monday: reason for monday, reason in ZOOMS[direction] if monday is not None
+        monday: reason for monday, reason in zooms[direction] if monday is not None
     }
     actual_days = is_set(labels.flag("actual", direction, basis, "any"))
-    per_week = actual_days.groupby(week_of(DAYS)).sum()
+    per_week = actual_days.groupby(week_of(days)).sum()
 
     def week_text(monday):
         text = f"{monday:%d %b %Y}"
         if per_week.get(monday, 0):
-            text += f" — {per_week[monday]} risk day(s)"
+            text += (
+                f" — {per_week[monday]} risk day{'s' if per_week[monday] != 1 else ''}"
+            )
         if monday in suggested:
             text += f" ★ {suggested[monday]}"
         return text
@@ -365,7 +363,7 @@ def zoom_week(direction, basis):
             go.Scatter(
                 x=week.index,
                 y=series[source],
-                name=source_label(source, direction),
+                name=source_label(labels, source, direction),
                 line=model_line(key),
             ),
             row=1,
@@ -418,7 +416,7 @@ def zoom_week(direction, basis):
                         name=name,
                         legendgroup=name,
                         showlegend=name not in in_legend,
-                        hovertemplate=f"{source_label(source, direction)} flagged %{{x|%a %H:%M}}<extra></extra>",
+                        hovertemplate=f"{source_label(labels, source, direction)} flagged %{{x|%a %H:%M}}<extra></extra>",
                     ),
                     row=2,
                     col=1,
@@ -432,7 +430,7 @@ def zoom_week(direction, basis):
     )
     fig.update_yaxes(
         tickvals=list(range(len(sources))),
-        ticktext=[source_label(s, direction) for s in sources],
+        ticktext=[source_label(labels, s, direction) for s in sources],
         range=[len(sources) - 0.5, -0.5],
         showgrid=False,
         tickformat="",
@@ -444,14 +442,14 @@ def zoom_week(direction, basis):
     fig.update_xaxes(
         tickvals=day_ticks + pd.Timedelta(hours=12),
         ticktext=[
-            f"{d:%a %d %b}" + (f"<br>{HOLIDAYS.get(d)}" if d in HOLIDAYS else "")
+            f"{d:%a %d %b}" + (f"<br>{days_off.get(d)}" if d in days_off else "")
             for d in day_ticks
         ],
         range=[monday, end],
     )
     for day in day_ticks[1:]:
         fig.add_vline(x=day, line={"color": COLORS["grid"], "width": 1})
-    st.plotly_chart(fig, key=f"zoom_chart_{direction}_{basis}")
+    st.plotly_chart(themed(fig), key=f"zoom_chart_{direction}_{basis}")
 
     flag_columns = [f"{s}_{direction}_risk_{basis}_any" for s in sources]
     flagged = [
@@ -463,7 +461,7 @@ def zoom_week(direction, basis):
         st.dataframe(
             pd.DataFrame(
                 {
-                    source_label(s, direction): [
+                    source_label(labels, s, direction): [
                         flagged_span(labels, s, direction, basis, day)
                         for day in flagged
                     ]
@@ -480,9 +478,11 @@ def zoom_week(direction, basis):
 # ============================================================================
 # Day margin (spec 10 §4.3 / §5.3)
 # ============================================================================
-def day_margin(direction, basis):
+def day_margin(labels, direction, basis):
+    daily = labels.daily
+    evaluable = daily["evaluable"]
     tail = RISK_COLOR[(direction, basis)]
-    scored = daily[EVALUABLE]
+    scored = daily[evaluable]
     extreme = "max" if direction == "high" else "min"
     sign = 1 if direction == "high" else -1
     threshold = scored[f"{direction}_threshold_{basis}"]
@@ -493,13 +493,13 @@ def day_margin(direction, basis):
     fig = make_subplots(
         rows=1,
         cols=2,
-        subplot_titles=[source_label(s, direction) for s in ("smard", "model")],
+        subplot_titles=[source_label(labels, s, direction) for s in ("smard", "model")],
         shared_yaxes=True,
     )
     lim = MARGIN_WINDOW
     for col, source in enumerate(["smard", "model"], start=1):
         y = scored[f"{source}_{extreme}"] - threshold
-        color = source_color(source, direction)
+        color = source_color(labels, source, direction)
         shown = (x.abs() <= lim) & (y.abs() <= lim)
         hit_x, hit_y = sign * x >= 0, sign * y >= 0
         fig.add_shape(
@@ -576,8 +576,8 @@ def day_margin(direction, basis):
                 col=col,
             )
         for name, (u, v), n in [
-            ("caught", (0.5, 0.85), int((hit_x & hit_y).sum())),
-            ("missed", (0.5, -0.85), int((hit_x & ~hit_y).sum())),
+            ("saw it coming", (0.5, 0.85), int((hit_x & hit_y).sum())),
+            ("missed it", (0.5, -0.85), int((hit_x & ~hit_y).sum())),
             ("false alarms", (-0.5, 0.85), int((~hit_x & hit_y).sum())),
         ]:
             fig.add_annotation(
@@ -609,7 +609,7 @@ def day_margin(direction, basis):
         zeroline=True,
         zerolinecolor=COLORS["muted"],
     )
-    st.plotly_chart(fig, key=f"margin_{direction}_{basis}")
+    st.plotly_chart(themed(fig), key=f"margin_{direction}_{basis}")
     outside = int(
         (
             ~((x.abs() <= lim) & (scored[f"model_{extreme}"] - threshold).abs().le(lim))
@@ -617,8 +617,8 @@ def day_margin(direction, basis):
     )
     st.caption(
         f"One dot per scored day: how far the day's {extreme} lay past the threshold, actual (x) against "
-        f"forecast (y). Tinted: caught, outlined: missed, dotted: false alarms. Days further than "
-        f"{lim:,} MWh from the threshold are off the chart ({outside} for {source_label('model', direction)}). "
+        f"forecast (y). Tinted: saw it coming, outlined: missed it, dotted: false alarms. Days further than "
+        f"{lim:,} MWh from the threshold are off the chart ({outside} for {source_label(labels, 'model', direction)}). "
         "Uses the 'at least one hour' rule."
     )
 
@@ -626,23 +626,25 @@ def day_margin(direction, basis):
 # ============================================================================
 # Findings, computed live (spec 10 §7)
 # ============================================================================
-def findings(direction, basis, rule):
+def findings(labels, direction, basis, rule):
+    days = labels.daily.index
+    days_off = german_holidays(days)
     actual = labels.flag("actual", direction, basis, rule)
-    risk_days = DAYS[is_set(actual).to_numpy()]
+    risk_days = days[is_set(actual).to_numpy()]
     if len(risk_days) == 0:
         return
     weekend = risk_days.dayofweek >= 5
     months = pd.Series(risk_days.month).value_counts().sort_index()
     misses = {
-        s: DAYS[
+        s: days[
             (
                 outcome(labels.flag(s, direction, basis, rule), actual) == "miss"
             ).to_numpy()
         ]
         for s in ("model", "smard")
     }
-    on_holiday = [d for d in risk_days if d in HOLIDAYS]
-    model = source_label("model", direction)
+    on_holiday = [d for d in risk_days if d in days_off]
+    model = source_label(labels, "model", direction)
     lines = [
         f"- **{int(weekend.sum())} of the {len(risk_days)} risk days fall on a weekend.**\n"
         f"  - Missed on weekends: {model} {int((misses['model'].dayofweek >= 5).sum())}, SMARD "
@@ -654,47 +656,64 @@ def findings(direction, basis, rule):
     ]
     if on_holiday:
         lines.append(
-            f"- **{len(on_holiday)} risk day(s) on a public holiday:** "
-            + ", ".join(f"{d:%d %b} ({HOLIDAYS.get(d)})" for d in on_holiday)
+            f"- **{len(on_holiday)} risk day{'s' if len(on_holiday) != 1 else ''} on a public holiday:** "
+            + ", ".join(f"{d:%d %b} ({days_off.get(d)})" for d in on_holiday)
             + "."
         )
     st.markdown("\n\n".join(lines))
 
 
 # ============================================================================
-# Page
+# Section
 # ============================================================================
-tabs = st.tabs([DIRECTION_TEXT[d][0] for d in BASES])
-for tab, direction in zip(tabs, BASES):
-    with tab:
-        st.markdown(
-            f"**{DIRECTION_TEXT[direction][0]}:** {DIRECTION_TEXT[direction][1]}. Forecast: **{source_label('model', direction)}**, the best model for this tail."
+def risk_days_section(labels):
+    """Intro, then one tab per side: scorecard, findings, calendar; week and near misses folded."""
+    days, evaluable = labels.daily.index, labels.daily["evaluable"]
+    st.markdown(
+        f"A day is a **risk day** when the actual residual load crosses the project's risk line "
+        f"(see '{title_of('app_pages/method.py')}'). Here the same lines are applied to our forecast and to SMARD's, "
+        f"issued the day before, over the test window **{days[0]:%d %b %Y} – {days[-1]:%d %b %Y}** "
+        f"({int(evaluable.sum())} days that can be scored). A forecast **saw it coming** when it "
+        "flags the risk day too; it **missed it** when it does not, and raises a **false alarm** when it flags a "
+        "day the actual does not. A risk day is a warning sign for Germany as a whole, not proof "
+        "that the grid operators had to step in."
+    )
+    if (~evaluable).any():
+        st.caption(
+            f"{int((~evaluable).sum())} days cannot be scored (incomplete data) and are left out."
         )
-        controls = st.columns(2)
-        if len(BASES[direction]) > 1:
-            basis = controls[0].radio(
-                "Threshold",
-                BASES[direction],
-                format_func=BASIS_TEXT.get,
-                horizontal=True,
-                key=f"basis_{direction}",
+
+    tabs = st.tabs([DIRECTION_TEXT[d][0] for d in BASES])
+    for tab, direction in zip(tabs, BASES):
+        with tab:
+            st.markdown(
+                f"**{DIRECTION_TEXT[direction][0]}:** {DIRECTION_TEXT[direction][1]}. Forecast: "
+                f"**{source_label(labels, 'model', direction)}**, the best model for this side."
             )
-        else:
-            basis = BASES[direction][0]
-        rule = controls[1].radio(
-            "A risk day needs",
-            list(RULE_TEXT),
-            format_func=RULE_TEXT.get,
-            horizontal=True,
-            key=f"rule_{direction}",
-        )
+            controls = st.columns(2)
+            if len(BASES[direction]) > 1:
+                basis = controls[0].radio(
+                    "Threshold",
+                    BASES[direction],
+                    index=BASES[direction].index(DEFAULT_BASIS[direction]),
+                    format_func=BASIS_TEXT.get,
+                    horizontal=True,
+                    key=f"basis_{direction}",
+                )
+            else:
+                basis = BASES[direction][0]
+            rule = controls[1].radio(
+                "A risk day needs",
+                list(RULE_TEXT),
+                format_func=RULE_TEXT.get,
+                horizontal=True,
+                key=f"rule_{direction}",
+            )
 
-        scorecard(direction, basis, rule)
-        findings(direction, basis, rule)
-        risk_calendar(direction, basis, rule)
-        st.subheader("A week up close")
-        zoom_week(direction, basis)
-        st.subheader("Near misses")
-        day_margin(direction, basis)
-
-next_page("app_pages/risk_days.py")
+            scorecard(labels, direction, basis, rule)
+            findings(labels, direction, basis, rule)
+            risk_calendar(labels, direction, basis, rule)
+            with st.expander("A week up close"):
+                zoom_week(labels, direction, basis)
+            with st.expander("Near misses: how close was it?"):
+                day_margin(labels, direction, basis)

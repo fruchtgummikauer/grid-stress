@@ -126,7 +126,7 @@ toggles), so they use Plotly (team decision, 2026-10-01).
   | `xgb_hybrid` | 4 plum |
   | `lgbm_hybrid` | 5 vermillion |
   | `xgb_direct` | 6 indigo |
-  | `ensemble_*` (all four methods) | maroon `ENSEMBLE_COLOR` |
+  | `ensemble_*` (all four methods) | maroon `ENSEMBLE_COLOR`, told apart by `ENSEMBLE_MARK` (bar pattern via `model_pattern`, marker via `model_symbol`) |
   | `actual` | navy `INK` |
   | `smard` | slate, dashed |
   | `seasonal_naive` | light slate `#A3A7B6` |
@@ -146,8 +146,19 @@ toggles), so they use Plotly (team decision, 2026-10-01).
 - **Lines use `model_line(key)` and `model_label(key)`**, so colour, dash and label come from one
   table. Colour follows the model, never its rank: a filter that drops models must not repaint
   the others.
-- Render with `st.plotly_chart(fig)`; its default `"streamlit"` theme takes the chart colours
-  from `config.toml`, which equal `PALETTE`. No `plt.close` is needed.
+- Render with `st.plotly_chart(themed(fig))`; its default `"streamlit"` theme takes the chart
+  colours from `config.toml`, which equal `PALETTE`. No `plt.close` is needed.
+
+## Dark mode
+
+`config.toml` has `[theme.light]` and `[theme.dark]`: the app follows the visitor's system
+setting, the ⋮ menu → Settings switches. Pages keep using the **light** tokens; `viz_helpers.DARK`
+maps each one to its dark counterpart (navy `#0F1B2D` surface, `#E6EAF2` text, validated series).
+- **Wrap every figure: `st.plotly_chart(themed(fig))`** (also `column.plotly_chart(...)`). An
+  unwrapped chart keeps light colours on a dark page.
+- Colours outside Plotly (Graphviz, HTML) go through `tone(token)`. Navy text on amber stays navy.
+- Heatmap colour scales are not swapped (they carry their own legend).
+- Streamlit reports a theme switch with the next rerun: charts follow at the next click.
 
 ## Adding a new colour or helper
 
@@ -159,4 +170,4 @@ toggles), so they use Plotly (team decision, 2026-10-01).
    `python3 <dataviz skill>/scripts/validate_palette.py "<hex,hex,...>" --mode light --surface "#FFFFFF"`
    (add `--pairs all` for scatter plots and small multiples).
 4. Add it to `viz_helpers.py` (and `config.toml` for theme colours), not to the page that first
-   needs it.
+   needs it, plus its dark counterpart to `DARK` (validate with `--mode dark --surface "#0F1B2D"`).

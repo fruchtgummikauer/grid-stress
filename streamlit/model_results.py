@@ -3,7 +3,8 @@
 Ported from `notebooks/05_modeling/visualization-01-regression-best-models.ipynb` §1.2–§2 (spec 09:
 common hours, bins, full months, self-check, pick rules) and
 `notebooks/05_modeling/visualization-02-classification-risk-labels.ipynb` §1.2 / §3 (spec 10:
-loading the label export, scoring flags). Those notebooks stay the source of truth; this module
+loading the label export, scoring flags) and the cost export of
+`notebooks/05_modeling/visualization-03-rebap-cost.ipynb` (spec 11). Those notebooks stay the source of truth; this module
 only reads their input and output files and adds Streamlit caching and "file not yet generated"
 handling on top. It computes no new results: risk flags and thresholds come from spec 10's export,
 never recomputed (CLAUDE.md).
@@ -29,6 +30,10 @@ RISK_SOURCE = (
     "with EXPORT_ENABLED = True (after the model exports)"
 )
 ENSEMBLE_SOURCE = "notebooks/05_modeling/ensemble-claude.ipynb with EXPORT_ENABLED = True (after the model saves)"
+REBAP_SOURCE = (
+    "notebooks/05_modeling/visualization-03-rebap-cost.ipynb with EXPORT_ENABLED = True "
+    "(after the model and ensemble exports; needs data/rebap.csv)"
+)
 SOURCES = {
     "scoreboard": ("models/model_scoreboard.csv", MODEL_SOURCE),
     "hourly": ("models/model_forecast_errors_hourly.csv", MODEL_SOURCE),
@@ -38,8 +43,10 @@ SOURCES = {
     "ensemble_hourly": ("models/ensemble_forecast_errors_hourly.csv", ENSEMBLE_SOURCE),
     "ensemble_scoreboard": ("models/ensemble_scoreboard.csv", ENSEMBLE_SOURCE),
     "ensemble_weights": ("models/ensemble_weights.csv", ENSEMBLE_SOURCE),
+    "rebap_cost": ("models/model_rebap_cost_hourly.csv", REBAP_SOURCE),
 }
 ENSEMBLE_EXPORTS = ["ensemble_hourly", "ensemble_scoreboard", "ensemble_weights"]
+ENSEMBLE_PREFIX = "ensemble_"  # spec 08's model keys: ensemble_<method>
 STAMP = "%Y-%m-%d %H:%M:%S"
 
 # Pick settings, as in spec 09's settings cell
@@ -146,6 +153,15 @@ class Accuracy:
     candidates: list
     picks: dict  # category -> picked rows, in rank order
     rejected: dict  # category -> {row: failed rules}
+    bands: (
+        dict  # row -> 95 % band (`lower`, `upper`) on the common hours, SMARD excluded
+    )
+    ensembles: list = field(
+        default_factory=list
+    )  # spec 08's rows, if their exports exist
+    ensemble_pick: tuple | None = (
+        None  # best CANDIDATE_SPLIT ensemble (spec 09's ENSEMBLE_PICK)
+    )
     problems: list = field(default_factory=list)  # self-check failures
 
     def bin_masks(self, values):
@@ -164,13 +180,13 @@ class Accuracy:
         return self.bin_masks(self.actual[self.common])
 
     def bin_rule(self, name):
-        """The bin's edge in words, e.g. `≤ P1 (−6,512 MWh)`."""
+        """The bin's edge in plain words, e.g. `at or below -6,512 MWh`."""
         e = self.edges
         return {
-            "low_extreme": f"≤ P1 ({e['P1']:,.0f} MWh)",
-            "below_zero": "< 0 MWh",
-            "ordinary": f"P25..P75 ({e['P25']:,.0f}..{e['P75']:,.0f} MWh)",
-            "high_extreme": f"> P99 ({e['P99']:,.0f} MWh)",
+            "low_extreme": f"at or below {e['P1']:,.0f} MWh",
+            "below_zero": "below 0 MWh",
+            "ordinary": f"between {e['P25']:,.0f} and {e['P75']:,.0f} MWh",
+            "high_extreme": f"above {e['P99']:,.0f} MWh",
         }[name]
 
     def forecast_share(self, row, name):
@@ -209,21 +225,39 @@ def _failed_rules(value, count, row, category):
 
 
 def _rank_key(value, row, category):
-    """Sort key: best first, ties by model key (spec 09 §2)."""
+    """Sort key: lowest average miss first, ties by model key.
+
+    Overall by MAE on all hours (team decision 2026-10-07; spec 09 ranked months beating SMARD
+    first), a tail by its MAE by actual (spec 09 §2).
+    """
     if category == "overall":
-        return (-value.loc[row, "months_beating_smard"], value.loc[row, "MAE"], row[0])
+        return (value.loc[row, "MAE"], row[0])
     return (value.loc[row, f"MAE_{category}_by_actual"], row[0])
 
 
+def is_ensemble(row):
+    """True for a spec 08 ensemble row."""
+    return row[0].startswith(ENSEMBLE_PREFIX)
+
+
 def load_accuracy() -> Accuracy:
-    """`Accuracy` of the model exports, cached on its input files."""
-    stamps = tuple(export_stamp(name) for name in ("scoreboard", "hourly", "smard"))
-    return _load_accuracy(stamps)
+    """`Accuracy` of the model exports (plus spec 08's ensembles, if exported), cached on its
+    input files."""
+    names = ["scoreboard", "hourly", "smard"]
+    with_ensembles = ensemble_ready()
+    if with_ensembles:
+        names += ["ensemble_hourly", "ensemble_scoreboard"]
+    return _load_accuracy(tuple(export_stamp(name) for name in names), with_ensembles)
 
 
 @st.cache_data
-def _load_accuracy(stamps) -> Accuracy:
-    """Build `Accuracy` from the model and SMARD exports, identically to spec 09 §1.3–§2."""
+def _load_accuracy(stamps, with_ensembles=False) -> Accuracy:
+    """Build `Accuracy` from the model and SMARD exports, identically to spec 09 §1.3–§2.
+
+    Spec 08's ensembles join as extra rows (as viz-01 adds them): never candidates, scored on the
+    same common hours, and only if the ensemble scoreboard's member and SMARD rows equal
+    `model_scoreboard.csv`.
+    """
     scoreboard = load_export("scoreboard")
     hourly = load_export("hourly")
     smard = load_export("smard").set_index("timestamp")
@@ -250,6 +284,44 @@ def _load_accuracy(stamps) -> Accuracy:
     common = test_hours[has_all.to_numpy()]
     errors = {SMARD_ROW: smard.loc[common, "err_residual_load"]}
     errors |= {row: error.loc[common, row] for row in forecasts if row != SMARD_ROW}
+    bands = {
+        row: hourly_bands(hourly, row, common) for row in forecasts if row != SMARD_ROW
+    }
+
+    ensembles, ensemble_problems = [], []
+    if with_ensembles:
+        ensemble_hourly = load_export("ensemble_hourly")
+        ensemble_board = load_export("ensemble_scoreboard")
+        ensemble_forecast = ensemble_hourly.pivot(
+            index="timestamp", columns=["model", "split_method"], values="forecast"
+        )
+        ensemble_error = ensemble_hourly.pivot(
+            index="timestamp",
+            columns=["model", "split_method"],
+            values="err_residual_load",
+        )
+        for row in ensemble_forecast:
+            forecasts[row] = ensemble_forecast[row].reindex(test_hours)
+            errors[row] = ensemble_error[row].reindex(common)
+            bands[row] = hourly_bands(ensemble_hourly, row, common)
+            ensembles.append(row)
+        is_member = ~ensemble_board["model"].str.startswith(ENSEMBLE_PREFIX)
+        shared = ensemble_board[is_member].merge(
+            scoreboard,
+            on=["model", "split_method", "metric"],
+            suffixes=("_ensemble", ""),
+        )
+        differs = shared[
+            (shared["value_ensemble"] - shared["value"]).abs().gt(1e-6)
+            | (shared["value_ensemble"].isna() != shared["value"].isna())
+        ]
+        if len(differs):
+            ensemble_problems.append(
+                f"the ensemble scoreboard's member rows differ from model_scoreboard.csv "
+                f"({len(differs)} values, e.g. {tuple(differs.iloc[0][['model', 'split_method', 'metric']])}) "
+                f"— re-run {ENSEMBLE_SOURCE}"
+            )
+        scoreboard = pd.concat([scoreboard, ensemble_board[~is_member]])
 
     quantiles = actual.quantile(TAIL_LEVELS).to_numpy()
     edges = dict(zip(["P1", "P25", "P75", "P99"], quantiles))
@@ -277,7 +349,9 @@ def _load_accuracy(stamps) -> Accuracy:
     candidates = [
         row
         for row in value.index
-        if row[1] == CANDIDATE_SPLIT and row[0] not in ("smard", "seasonal_naive")
+        if row[1] == CANDIDATE_SPLIT
+        and row[0] not in ("smard", "seasonal_naive")
+        and not is_ensemble(row)
     ]
     picks, rejected = {}, {}
     for category in CATEGORIES:
@@ -304,13 +378,39 @@ def _load_accuracy(stamps) -> Accuracy:
         candidates=candidates,
         picks=picks,
         rejected=rejected,
+        bands=bands,
+        ensembles=ensembles,
     )
-    accuracy.problems = _self_check(accuracy, smard)
+    # Spec 09's ensemble pick: the best CANDIDATE_SPLIT ensemble by the overall ranking; shown as
+    # a headline only if it beats SMARD
+    qualified = [
+        row
+        for row in ensembles
+        if row[1] == CANDIDATE_SPLIT and not _failed_rules(value, count, row, "overall")
+    ]
+    if qualified:
+        accuracy.ensemble_pick = min(
+            qualified, key=lambda row: _rank_key(value, row, "overall")
+        )
+    accuracy.problems = ensemble_problems + _self_check(accuracy, smard)
     if not candidates:
         accuracy.problems.append(
             f"no {CANDIDATE_SPLIT!r} rows in the model exports — re-run {MODEL_SOURCE}"
         )
     return accuracy
+
+
+def hourly_bands(hourly, row, hours):
+    """A row's 95 % band (`lower`, `upper`) from an hourly export, on `hours`."""
+    rows = hourly[(hourly["model"] == row[0]) & (hourly["split_method"] == row[1])]
+    return rows.set_index("timestamp")[["lower", "upper"]].reindex(hours)
+
+
+def coverage(acc, row, hours=None):
+    """Share of `hours` (default: the common hours) whose actual lies inside the row's band (%)."""
+    band = acc.bands[row] if hours is None else acc.bands[row].loc[hours]
+    actual = acc.actual[band.index]
+    return 100 * float(((actual >= band["lower"]) & (actual <= band["upper"])).mean())
 
 
 def _self_check(acc, smard):
@@ -393,8 +493,12 @@ class RiskLabels:
 
 
 def load_risk_labels() -> RiskLabels:
-    """Spec 10's risk labels, cached on the export files."""
-    stamps = tuple(export_stamp(name) for name in ("risk_daily", "risk_hourly"))
+    """Spec 10's risk labels, cached on the export files and the model exports they are checked
+    against."""
+    stamps = tuple(
+        export_stamp(name)
+        for name in ("risk_daily", "risk_hourly", "scoreboard", "hourly", "smard")
+    )
     return _load_risk_labels(stamps)
 
 
@@ -426,9 +530,114 @@ def _load_risk_labels(stamps) -> RiskLabels:
                 f"the risk-label export and the model exports come from different runs — "
                 f"re-run {RISK_SOURCE}"
             )
+        # Same model run: the actuals survive a refit, so compare the picks' forecasts too
+        for direction, model in picks.items():
+            current = accuracy.forecasts.get((model, CANDIDATE_SPLIT))
+            if current is None or len(shared) == 0:
+                continue  # a pick without a current forecast (e.g. an unexported ensemble)
+            stored = hourly.loc[shared, f"{direction}_model_forecast"]
+            gap = float((stored - current.reindex(shared)).abs().max())
+            if not gap <= 1e-3:
+                labels.problems.append(
+                    f"the risk labels' {direction} pick ({model}) has other forecasts than the "
+                    f"model exports (up to {gap:,.0f} MWh apart) — re-run {RISK_SOURCE}"
+                )
     except FileNotFoundError:
         pass  # the accuracy page reports its own missing files
     return labels
+
+
+# ============================================================================
+# reBAP cost (spec 11)
+# ============================================================================
+REBAP_CATEGORIES = [
+    "overall",
+    "below_zero",
+    "low_extreme",
+    "high_extreme",
+]  # no `ordinary`
+
+
+@dataclass
+class RebapCost:
+    """Spec 11's cost export: every miss priced at the hour's mean |reBAP| (a proxy, not a bill)."""
+
+    price: pd.Series  # mean |reBAP| per hour (EUR/MWh), on the priced hours
+    cost: pd.DataFrame  # hours × rows: |miss| × price (EUR), SMARD included
+    saved: (
+        pd.DataFrame
+    )  # hours × rows: SMARD's cost − the row's cost (EUR), SMARD excluded
+    problems: list = field(default_factory=list)
+
+
+def load_rebap_cost() -> RebapCost:
+    """Spec 11's cost export, cached on its file and the model exports it is checked against."""
+    stamps = tuple(
+        export_stamp(name) for name in ("rebap_cost", "scoreboard", "hourly", "smard")
+    )
+    return _load_rebap_cost(stamps)
+
+
+@st.cache_data
+def _load_rebap_cost(stamps) -> RebapCost:
+    """Read spec 11's export and check it against `load_accuracy()`: same run, same hours.
+
+    Reads only the export, never `rebap.csv` (reBAP stays out of shared work, CLAUDE.md).
+    """
+    frame = load_export("rebap_cost")
+    rows = ["model", "split_method"]
+    cost = frame.pivot(index="timestamp", columns=rows, values="cost_eur")
+    saved = frame.pivot(index="timestamp", columns=rows, values="saved_eur").drop(
+        columns=[SMARD_ROW]
+    )
+    error = frame.pivot(index="timestamp", columns=rows, values="err_residual_load")
+    hourly = frame.groupby("timestamp").first()
+
+    regen = f"re-run {REBAP_SOURCE}"
+    accuracy = load_accuracy()
+    # Rows `load_accuracy` doesn't have (spec 08's ensembles while their exports are missing)
+    # can't be checked, so they are left out
+    extra = [row for row in error if row not in accuracy.errors]
+    cost, saved, error = (
+        f.drop(columns=[r for r in extra if r in f]) for f in (cost, saved, error)
+    )
+    rebap = RebapCost(price=hourly["rebap_abs_mean"], cost=cost, saved=saved)
+    rebap.problems += [
+        f"{row} is not in the model exports — {regen}"
+        for row in extra
+        if not row[0].startswith("ensemble_")
+    ]
+    if not cost.index.equals(accuracy.common):
+        rebap.problems.append(
+            f"the cost export prices {len(cost):,} hours, the model exports have "
+            f"{len(accuracy.common):,} common hours — {regen}"
+        )
+        return rebap
+    gap = float(
+        (hourly["residual_load"] - accuracy.actual[accuracy.common]).abs().max()
+    )
+    if gap > 1e-6:
+        rebap.problems.append(
+            f"residual_load differs from the model exports by up to {gap:,.2f} MWh — {regen}"
+        )
+    for row in error:
+        if float((error[row] - accuracy.errors[row]).abs().max()) > 1e-6:
+            rebap.problems.append(
+                f"{row}: misses differ from the model exports — {regen}"
+            )
+    priced = (error.abs().mul(rebap.price, axis=0) - cost).abs().max().max()
+    if priced > 1e-3:
+        rebap.problems.append(
+            f"cost ≠ |miss| × |reBAP| (up to {priced:,.3f} EUR) — {regen}"
+        )
+    for name in REBAP_CATEGORIES[1:]:
+        if not (
+            hourly[f"in_{name}"].to_numpy() == accuracy.bin_hours[name].to_numpy()
+        ).all():
+            rebap.problems.append(
+                f"{name}: hours differ from the model exports — {regen}"
+            )
+    return rebap
 
 
 def outcome(forecast, actual):
@@ -587,6 +796,12 @@ def model_windows():
         "no model save with `tuned_on` windows in data/models/ — run "
         "notebooks/05_modeling/regression-models-claude.ipynb with SAVE_MODELS = True."
     )
+
+
+def load_ensemble_weights():
+    """Spec 08's final weights: `method`, `split_method`, `regime`, `member`, `weight`
+    (`adaptive`: one `regime` per test day)."""
+    return load_export("ensemble_weights")
 
 
 def ensemble_ready():

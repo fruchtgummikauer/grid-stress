@@ -5,7 +5,8 @@ Run from the repo root, so `.streamlit/config.toml` (the theme) is found:
     uv run streamlit run streamlit/streamlit_app.py
 
 The pages live in `app_pages/`; their order, titles and sections are in
-`components/layout.py` (`TOUR`): Home, Background, Method, Where we beat SMARD, Team / About.
+`components/layout.py` (`TOUR`): Home, When is the grid under pressure?, How do we forecast?,
+Do we beat SMARD?, Try it yourself, What is it worth?, Who are we?
 """
 
 import streamlit as st
