@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components.layout import TOUR, next_page
+from components.layout import LOGO_ICON, TOUR, next_page
 from data_loading import get_years, load_risk_labels_daily, load_smard
 from model_results import is_set
 from viz_helpers import (
@@ -24,7 +24,7 @@ from viz_helpers import (
     themed,
 )
 
-st.set_page_config(page_title="Grid Stress", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Grid Stress", page_icon=LOGO_ICON, layout="wide")
 
 # One line per page on the tour, keyed by its TOUR path (the list itself follows TOUR's order)
 PAGE_BLURB = {

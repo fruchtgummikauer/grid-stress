@@ -11,9 +11,9 @@ Do we beat SMARD?, Try it yourself, What is it worth?, Who are we?
 
 import streamlit as st
 
-from components.layout import navigation_pages, remember_page, sidebar
+from components.layout import LOGO_ICON, navigation_pages, remember_page, sidebar
 
-st.set_page_config(page_title="Grid Stress", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Grid Stress", page_icon=LOGO_ICON, layout="wide")
 
 navigation = st.navigation(navigation_pages())  # pages and order: layout.TOUR
 sidebar()  # demo mode, data date: on every page

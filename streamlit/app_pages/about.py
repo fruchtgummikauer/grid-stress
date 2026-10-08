@@ -10,7 +10,7 @@ The data check sits after the developer section and is hidden in demo mode.
 import streamlit as st
 
 from components.data_check import data_check
-from components.layout import REPO_URL, TOUR, demo_mode, header, next_page
+from components.layout import REPO_URL, TOUR, demo_mode, logo, next_page
 from data_loading import get_years, load_smard
 from model_results import SMARD_ROW, is_ensemble, load_accuracy
 from viz_helpers import ACCENT, COLORS, INK, MUTED, SURFACE_2, tone
@@ -58,7 +58,8 @@ TEAM = [
     ),
 ]
 
-header("Who are we?", "Who we are, what we used, and where the code is.")
+st.image(logo(), width=420)  # the team logo stands in for the page title
+st.markdown("### Who we are, what we used, and where the code is.")
 st.markdown(
     "We are a team of data-science students at the neuefische bootcamp, plus one very diligent "
     "intern. We built this project end to end: from downloading years of German grid data to "
@@ -67,7 +68,7 @@ st.markdown(
 st.link_button("View the code on GitHub", REPO_URL, icon="💻")
 
 # --- Who we are -------------------------------------------------------------------------------
-st.subheader("Who we are")
+st.subheader("Who are the Power Rangers?")
 
 
 def member_card(column, name, emoji, title, joke):
