@@ -1,4 +1,4 @@
-"""Team / About (Streamlit-v3.md §1.6) — who made this, what it rests on, what comes next.
+"""Who are we? (Streamlit-v3.md §1.6) — who made this, what it rests on, what comes next.
 
 Team names, titles and one-liners as the team gave them (2026-10-07), each with a one-line joke in the team's
 own words. The project numbers are computed from the data and the
@@ -10,13 +10,13 @@ The data check sits after the developer section and is hidden in demo mode.
 import streamlit as st
 
 from components.data_check import data_check
-from components.layout import REPO_URL, demo_mode, header, next_page
+from components.layout import REPO_URL, TOUR, demo_mode, header, next_page
 from data_loading import get_years, load_smard
-from model_results import SMARD_ROW, load_accuracy
-from viz_helpers import ACCENT, COLORS, INK, MUTED, SURFACE_2
+from model_results import SMARD_ROW, is_ensemble, load_accuracy
+from viz_helpers import ACCENT, COLORS, INK, MUTED, SURFACE_2, tone
 
 st.set_page_config(
-    page_title="Team / About — Grid Stress", page_icon="👥", layout="wide"
+    page_title="Who are we? — Grid Stress", page_icon="👥", layout="wide"
 )
 
 REPO_LICENSE = f"{REPO_URL}/blob/main/LICENSE"
@@ -58,7 +58,7 @@ TEAM = [
     ),
 ]
 
-header("Team / About", "Who we are, what we used, and where the code is.")
+header("Who are we?", "Who we are, what we used, and where the code is.")
 st.markdown(
     "We are a team of data-science students at the neuefische bootcamp, plus one very diligent "
     "intern. We built this project end to end: from downloading years of German grid data to "
@@ -101,13 +101,23 @@ except (FileNotFoundError, RuntimeError):
     pass
 try:
     accuracy = load_accuracy()
+    # The headline row of "Do we beat SMARD?": our best model overall (lowest average miss)
     first = accuracy.picks["overall"][0] if accuracy.picks["overall"] else None
-    models = {row[0] for row in accuracy.errors if row != SMARD_ROW}
+    models = {
+        row[0]
+        for row in accuracy.errors
+        if row != SMARD_ROW and not is_ensemble(row) and row[0] != "seasonal_naive"
+    }  # the seasonal-naive sanity check is no model of ours (as on the Method page)
     tiles += [
         (
             "Models compared",
             f"{len(models)}",
-            "Model families scored against SMARD on the test year.",
+            "Single-model families scored against SMARD on the test year (not counting a simple sanity check)"
+            + (
+                f", plus {len({row[0] for row in accuracy.ensembles})} ways of combining them."
+                if accuracy.ensembles
+                else "."
+            ),
         ),
         (
             "Test hours scored",
@@ -118,8 +128,8 @@ try:
     if first is not None:
         tiles.append(
             (
-                "Closer than SMARD",
-                f"{accuracy.value.loc[first, 'skill_pct']:+.0f} %",
+                "Smarter than SMARD",
+                f"{accuracy.value.loc[first, 'skill_pct']:+.1f} %",
                 "How much of the official forecast's miss our forecast removes.",
             )
         )
@@ -132,38 +142,39 @@ if tiles:
 # --- What we built ----------------------------------------------------------------------------
 st.subheader("What we built")
 skill_text = (
-    f"improved the official day-ahead forecast by **{accuracy.value.loc[first, 'skill_pct']:.0f} %** on a "
+    f"made a forecast **{accuracy.value.loc[first, 'skill_pct']:.1f} % smarter than SMARD** (smaller misses) on a "
     "year our models never saw"
     if first is not None
     else "compared our forecasts with the official day-ahead forecast on a year our models never saw"
 )
 st.markdown(
-    f"We showed how the grid's pressure behaves, defined risk days and set up a fair test, and "
-    f"{skill_text}."
+    f"We showed how the grid's pressure behaves, defined risk days and set up a fair test, "
+    f"{skill_text}, and put a price on that gain with the imbalance price (reBAP)."
 )
-links = st.columns(3)
-links[0].page_link("app_pages/background.py", label="Background", icon="📊")
-links[1].page_link("app_pages/method.py", label="Method", icon="🧭")
-links[2].page_link("app_pages/beat_smard.py", label="Where we beat SMARD", icon="🏁")
+LINKED = ["background", "method", "beat-smard", "try-it", "worth"]
+links = st.columns(len(LINKED))
+for column, (path, title, icon, _) in zip(
+    links, [entry for entry in TOUR if entry[3] in LINKED]
+):
+    column.page_link(path, label=title, icon=icon)
 
 st.graphviz_chart(f"""
 digraph {{
   rankdir=LR; bgcolor="transparent";
-  node [shape=box, style="rounded,filled", fillcolor="{SURFACE_2}", color="{COLORS['grid']}",
-        fontname="sans-serif", fontcolor="{INK}", fontsize=12, margin="0.18,0.1"];
-  edge [color="{MUTED}"];
+  node [shape=box, style="rounded,filled", fillcolor="{tone(SURFACE_2)}", color="{tone(COLORS['grid'])}",
+        fontname="sans-serif", fontcolor="{tone(INK)}", fontsize=12, margin="0.18,0.1"];
+  edge [color="{tone(MUTED)}"];
   data [label="Data pipeline"]; eda [label="Exploration"]; risk [label="Risk definition"];
   features [label="Features"]; models [label="Models"];
-  ensemble [label="Ensemble\\n(in progress)", style="rounded,dashed", fillcolor="white"];
-  bands [label="Uncertainty ranges\\n(in progress)", style="rounded,dashed", fillcolor="white"];
-  app [label="This app", fillcolor="{ACCENT}", color="{ACCENT}"];
-  data -> eda -> risk -> features -> models -> ensemble -> bands;
-  models -> app;
+  ensemble [label="Ensemble"];
+  bands [label="Uncertainty ranges"];
+  cost [label="Price of a miss\\n(reBAP)"];
+  app [label="This app", fillcolor="{ACCENT}", color="{ACCENT}", fontcolor="{INK}"];
+  data -> eda -> risk -> features -> models -> ensemble -> bands -> app;
+  ensemble -> cost -> app;
 }}
 """)
-st.caption(
-    "How the project grew, from raw data to this app. Dashed steps are still in progress."
-)
+st.caption("How the project grew, from raw data to this app.")
 
 # --- Data and tools ---------------------------------------------------------------------------
 st.subheader("Data and tools")
@@ -195,13 +206,12 @@ st.info(
 # --- What we'd do next ------------------------------------------------------------------------
 st.subheader("What we'd do next")
 st.markdown("""
-1. **Finish the ensemble** and give every forecast an **uncertainty range**.
+1. **Calibrate the uncertainty range** so it holds reality as often as it promises (95 % of hours).
 2. **Settle the open risk-day settings:** how extreme counts as "extreme", and whether the two sides
    need one model or two.
 3. **Add regional data:** local grid bottlenecks are the main real cause of interventions, and a
    national view can't see them.
-4. **Put a price on each forecast miss** with the imbalance price (reBAP).
-5. **Run the forecast every day**, live, instead of on a fixed test year.
+4. **Run the forecast every day**, live, instead of on a fixed test year.
 """)
 
 # --- For developers ---------------------------------------------------------------------------

@@ -39,9 +39,14 @@ from viz_helpers import (
     TAIL_COLOR,
     residual_colorscale,
     style_plotly,
+    themed,
 )
 
-st.set_page_config(page_title="Background — Grid Stress", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="When is the grid under pressure? — Grid Stress",
+    page_icon="📊",
+    layout="wide",
+)
 
 try:
     time_series = load_smard()
@@ -84,12 +89,12 @@ def hover_closest(fig):
 
 
 header(
-    "Background: how the grid's pressure behaves",
+    "When is the grid under pressure?",
     "Before forecasting, we studied every hour since " f"{time_series.index.min():%Y}.",
 )
 st.markdown(
     "Four things stand out: a daily rhythm set by work and sunlight, a summer *solar hole* at "
-    "midday, surplus hours that are multiplying, and two extremes with completely different "
+    "midday, more and more hours where wind and solar exceed demand, and two extremes with completely different "
     "causes. Every chart is interactive — hover for the numbers, drag to zoom, double-click to "
     "reset."
 )
@@ -138,7 +143,7 @@ style_plotly(
     "MWh (average hour)",
     xlabel="hour of day",
 )
-st.plotly_chart(fig)
+st.plotly_chart(themed(fig))
 st.caption(
     "Each line is the average of that hour over every day in the selection. Switch between "
     "winter and summer: in summer, solar pushes midday residual load far down; in winter it "
@@ -182,7 +187,7 @@ style_plotly(
     xlabel="hour of day",
     height=400,
 )
-st.plotly_chart(fig)
+st.plotly_chart(themed(fig))
 
 peak_gap = holiday_profile["Ordinary day"] - holiday_profile["National holiday"]
 holiday_count = int(is_holiday.groupby(time_series.index.date).any().sum())
@@ -242,7 +247,7 @@ def calendar_heatmap(col, dimension, height=480):
     return hover_closest(fig)
 
 
-st.plotly_chart(calendar_heatmap("residual_load", "Month"))
+st.plotly_chart(themed(calendar_heatmap("residual_load", "Month")))
 st.caption(
     "Each square is the average residual load for that month and hour. Blue = little left for "
     "other power plants (much green power), red = a lot left to cover. Look for the pale-blue "
@@ -261,7 +266,7 @@ with st.expander("More calendar views"):
         "Series", ["residual_load", "grid_load"], format_func=PLAIN.get, horizontal=True
     )
     heat_dim = pick_dimension.radio("By", list(HEATMAP_DIMENSIONS), horizontal=True)
-    st.plotly_chart(calendar_heatmap(heat_col, heat_dim, height=420))
+    st.plotly_chart(themed(calendar_heatmap(heat_col, heat_dim, height=420)))
 
 # =================================================================================================
 # 3. The change (§6.5)
@@ -288,7 +293,7 @@ style_plotly(
     fig, f"Hours with more green power than demand ({WINDOW})", "hours", height=420
 )
 fig.update_yaxes(range=[0, negative_hours.max() * 1.15 if negative_hours.max() else 1])
-st.plotly_chart(hover_closest(fig))
+st.plotly_chart(themed(hover_closest(fig)))
 st.caption(
     f"Hours in which residual load was below zero. Every year is counted over the same window "
     f"({WINDOW}), so {years[-1]} — still in progress — is compared fairly."
@@ -329,9 +334,9 @@ fig = go.Figure(
 )
 fig.add_hline(y=0, line={"color": COLORS["muted"], "width": 1})
 style_plotly(fig, f"Residual load by year ({WINDOW})", "MWh", height=440)
-st.plotly_chart(hover_closest(fig))
+st.plotly_chart(themed(hover_closest(fig)))
 st.caption(
-    "The dot is a typical hour that year (the median); the bar covers the middle 80 % of hours (P10 to P90)."
+    "The dot is a typical hour that year (the median); the bar covers the middle 80 % of hours."
 )
 st.markdown("""
 - The typical hour has drifted down over the record, but the **low end falls much faster than the
@@ -339,7 +344,7 @@ st.markdown("""
   distribution isn't sliding down as a block, it is **stretching downward**.
 - Each year's low end reaches further towards, and eventually past, zero — while the high end
   barely moves.
-- In short: the oversupply side is growing; the tight-margin side stays where it was.
+- In short: hours with too much green power are growing; hours with too little stay where they were.
 """)
 
 # =================================================================================================
@@ -411,13 +416,17 @@ def mirrored_bars(extract, order, labels, title, axis_label, height):
 
 by_month, by_hour = st.columns(2)
 by_month.plotly_chart(
-    mirrored_bars(
-        lambda idx: idx.month, range(1, 13), MONTH_NAMES, "By month", "month", 520
+    themed(
+        mirrored_bars(
+            lambda idx: idx.month, range(1, 13), MONTH_NAMES, "By month", "month", 520
+        )
     )
 )
 by_hour.plotly_chart(
-    mirrored_bars(
-        lambda idx: idx.hour, range(24), HOUR_LABELS, "By hour of day", "hour", 520
+    themed(
+        mirrored_bars(
+            lambda idx: idx.hour, range(24), HOUR_LABELS, "By hour of day", "hour", 520
+        )
     )
 )
 st.markdown("""
@@ -425,19 +434,33 @@ st.markdown("""
   around midday and at weekends.
 - **Too little green power** (red, right): weekdays only, spread evenly across the years, in winter,
   peaking in the evening with a smaller morning peak.
-- The oversupply extreme is new and growing with the renewable build-out; the tight-margin extreme
+- Too much green power is new and growing with the renewable build-out; too little green power
   is the classic, stable winter stress case.
 """)
 with st.expander("By year and by weekday"):
     by_year, by_weekday = st.columns(2)
     by_year.plotly_chart(
-        mirrored_bars(
-            lambda idx: idx.year, years, [str(y) for y in years], "By year", "year", 380
+        themed(
+            mirrored_bars(
+                lambda idx: idx.year,
+                years,
+                [str(y) for y in years],
+                "By year",
+                "year",
+                380,
+            )
         )
     )
     by_weekday.plotly_chart(
-        mirrored_bars(
-            lambda idx: idx.dayofweek, range(7), DAY_NAMES, "By weekday", "weekday", 380
+        themed(
+            mirrored_bars(
+                lambda idx: idx.dayofweek,
+                range(7),
+                DAY_NAMES,
+                "By weekday",
+                "weekday",
+                380,
+            )
         )
     )
 
@@ -451,8 +474,8 @@ with st.container(border=True):
     st.markdown(f"""
 1. **Two extremes, two problems.** Too much and too little green power differ in season, time of
    day, day type, trend and cause — they are not one phenomenon.
-2. **The surplus side is growing.** Residual load's low end has fallen sharply while its high end
-   has barely moved; it is already below zero in {negative_share:.2f} % of all hours.
+2. **Too much green power is growing.** Residual load's low end has fallen sharply while its high end
+   has barely moved; it is already below zero in {negative_share:.1f} % of all hours.
 3. **Sunlight shapes residual load.** Electricity use follows the working day; residual load follows
    the sun — and its hour-to-hour swings are getting bigger.
 """)
@@ -502,7 +525,7 @@ with st.expander("For the technically curious"):
     )
     fig.update_layout(bargap=0)
     fig.update_xaxes(tickformat=",.0f")
-    st.plotly_chart(hover_closest(fig))
+    st.plotly_chart(themed(hover_closest(fig)))
 
     shape = pd.Series(
         {
@@ -538,7 +561,7 @@ with st.expander("For the technically curious"):
         go.Scatter(
             x=ramp_by_year.index.astype(str),
             y=ramp_by_year["p99"],
-            name="Largest 1 % of swings (P99)",
+            name="Largest 1 % of swings",
             mode="lines+markers",
             line={"color": RAMP_COLOR, "width": 2.5},
             hovertemplate="%{y:,.0f} MW/h",
@@ -558,7 +581,7 @@ with st.expander("For the technically curious"):
         fig, f"Size of one-hour changes in residual load ({WINDOW})", "MW/h", height=400
     )
     fig.update_yaxes(rangemode="tozero")
-    st.plotly_chart(fig)
+    st.plotly_chart(themed(fig))
     st.caption(
         "A ramp is the change in residual load from one hour to the next, regardless of direction."
     )
@@ -588,7 +611,7 @@ with st.expander("For the technically curious"):
         xlabel="wind + solar as a share of electricity use (%)",
         height=460,
     )
-    st.plotly_chart(hover_closest(fig))
+    st.plotly_chart(themed(hover_closest(fig)))
 
     CORRELATION_LABELS = [
         "Electricity use",
@@ -615,7 +638,7 @@ with st.expander("For the technically curious"):
     )
     style_plotly(fig, "Rank correlation (Spearman)", "", height=480)
     fig.update_yaxes(autorange="reversed", showgrid=False)
-    st.plotly_chart(hover_closest(fig))
+    st.plotly_chart(themed(hover_closest(fig)))
     st.markdown("""
 - Residual load rises strongly with electricity use and falls strongly with the wind+solar share.
 - Solar and wind are close to uncorrelated — independent inputs.
@@ -641,7 +664,7 @@ with st.expander("For the technically curious"):
     fig.add_vline(
         x=100 - negative_share,
         line={"color": TAIL_COLOR["low"], "dash": "dot", "width": 1},
-        annotation_text=f"below zero for {negative_share:.2f} % of hours",
+        annotation_text=f"below zero for {negative_share:.1f} % of hours",
         annotation_font_color=INK,
         annotation_position="bottom left",
     )
@@ -653,7 +676,7 @@ with st.expander("For the technically curious"):
         height=420,
     )
     fig.update_xaxes(hoverformat=".1f", ticksuffix=" %")
-    st.plotly_chart(fig)
+    st.plotly_chart(themed(fig))
     st.markdown("""
 - The curves differ in **shape, not just level**: electricity use is flat through the middle and
   steep only at its extremes; residual load falls steadily across its whole range and dives through
@@ -697,4 +720,7 @@ st.caption(
     "Source: `notebooks/01_eda/team-EDA.ipynb` (team-reviewed) — §2.1, §3.7, §5.1–5.3, §6.3, §6.5, §7.2, §7.3."
 )
 
+st.markdown(
+    "**Next:** how we turn these patterns into a forecast for tomorrow, and how we test it fairly."
+)
 next_page("app_pages/background.py")

@@ -26,24 +26,48 @@ COLUMNS = {
 }
 
 SERIES = [
-    "wind_off", "wind_on", "solar", "grid_load", "residual_load",
-    "fc_gen_wind_solar", "fc_grid_load", "fc_residual_load",
-    "cap_wind_off", "cap_wind_on", "cap_solar",
+    "wind_off",
+    "wind_on",
+    "solar",
+    "grid_load",
+    "residual_load",
+    "fc_gen_wind_solar",
+    "fc_grid_load",
+    "fc_residual_load",
+    "cap_wind_off",
+    "cap_wind_on",
+    "cap_solar",
 ]
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 SEASON_OF_MONTH = {
-    12: "winter", 1: "winter", 2: "winter",
-    3: "spring", 4: "spring", 5: "spring",
-    6: "summer", 7: "summer", 8: "summer",
-    9: "autumn", 10: "autumn", 11: "autumn",
+    12: "winter",
+    1: "winter",
+    2: "winter",
+    3: "spring",
+    4: "spring",
+    5: "spring",
+    6: "summer",
+    7: "summer",
+    8: "summer",
+    9: "autumn",
+    10: "autumn",
+    11: "autumn",
 }
 SEASON_ORDER = ["winter", "spring", "summer", "autumn"]
 
 DERIVED = [
-    "renewables", "year", "month", "hour", "dow", "is_weekend",
-    "date", "season", "season_year", "spans_gap",
+    "renewables",
+    "year",
+    "month",
+    "hour",
+    "dow",
+    "is_weekend",
+    "date",
+    "season",
+    "season_year",
+    "spans_gap",
 ]
 
 
@@ -97,9 +121,9 @@ def load_smard() -> pd.DataFrame:
 def _load_smard(path: str, mtime: float) -> pd.DataFrame:
     """The cached body of `load_smard`; `mtime` is only the cache key."""
     raw = pd.read_csv(path, delimiter=";", encoding="utf-8-sig")
-    assert set(raw.columns) == {"timestamp"} | set(COLUMNS), (
-        f"unexpected CSV header: {sorted(set(raw.columns) ^ ({'timestamp'} | set(COLUMNS)))}"
-    )
+    assert set(raw.columns) == {"timestamp"} | set(
+        COLUMNS
+    ), f"unexpected CSV header: {sorted(set(raw.columns) ^ ({'timestamp'} | set(COLUMNS)))}"
 
     raw = raw.rename(columns=COLUMNS)
     raw["timestamp"] = pd.to_datetime(raw["timestamp"], format="%Y-%m-%d %H:%M")
@@ -108,7 +132,9 @@ def _load_smard(path: str, mtime: float) -> pd.DataFrame:
 
     time_series = raw.set_index("timestamp").sort_index()
 
-    time_series["renewables"] = time_series[["wind_on", "wind_off", "solar"]].sum(axis=1)
+    time_series["renewables"] = time_series[["wind_on", "wind_off", "solar"]].sum(
+        axis=1
+    )
     time_series["year"] = time_series.index.year
     time_series["month"] = time_series.index.month
     time_series["hour"] = time_series.index.hour
@@ -116,9 +142,13 @@ def _load_smard(path: str, mtime: float) -> pd.DataFrame:
     time_series["is_weekend"] = time_series.index.dayofweek >= 5
     time_series["date"] = time_series.index.date
     time_series["season"] = pd.Categorical(
-        time_series.index.month.map(SEASON_OF_MONTH), categories=SEASON_ORDER, ordered=True
+        time_series.index.month.map(SEASON_OF_MONTH),
+        categories=SEASON_ORDER,
+        ordered=True,
     )
-    time_series["season_year"] = time_series.index.year + (time_series.index.month == 12)
+    time_series["season_year"] = time_series.index.year + (
+        time_series.index.month == 12
+    )
     time_series["spans_gap"] = time_series.index.to_series().diff() > pd.Timedelta("1h")
 
     assert list(time_series.columns) == SERIES + DERIVED, list(time_series.columns)

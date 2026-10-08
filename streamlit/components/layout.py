@@ -11,15 +11,24 @@ from data_loading import load_smard
 REPO_URL = "https://github.com/fruchtgummikauer/grid-stress"
 
 # The tour (§1.1): path, title, icon, url. The order is the sidebar and "Next →" order;
-# streamlit_app.py builds the navigation from this table. app_pages/risk_days.py is not on it
-# (removed from the app, team decision 2026-10-06).
+# streamlit_app.py builds the navigation from this table. Titles are short questions (team
+# decision 2026-10-07); the urls keep the old page names, so saved links still work. The former
+# Risk days page is a section of "Do we beat SMARD?" (components/risk_view.py), whose interactive
+# tools moved to "Try it yourself" (same day).
 TOUR = [
     ("app_pages/home.py", "Home", "⚡", "home"),
-    ("app_pages/background.py", "Background", "📊", "background"),
-    ("app_pages/method.py", "Method", "🧭", "method"),
-    ("app_pages/beat_smard.py", "Where we beat SMARD", "🏁", "beat-smard"),
-    ("app_pages/about.py", "Team / About", "👥", "about"),
+    ("app_pages/background.py", "When is the grid under pressure?", "📊", "background"),
+    ("app_pages/method.py", "How do we forecast?", "🧭", "method"),
+    ("app_pages/beat_smard.py", "Do we beat SMARD?", "🏁", "beat-smard"),
+    ("app_pages/try_it.py", "Try it yourself", "🎛️", "try-it"),
+    ("app_pages/rebap.py", "What is it worth?", "💶", "worth"),
+    ("app_pages/about.py", "Who are we?", "👥", "about"),
 ]
+
+
+def title_of(path):
+    """A page's title from TOUR, so links and text never name an old page."""
+    return next(title for p, title, _, _ in TOUR if p == path)
 
 
 def navigation_pages():
@@ -49,12 +58,12 @@ def sidebar():
         st.toggle(
             "Demo mode",
             key="demo_mode",
-            help="For the projector: hides chart toolbars (more to come per page).",
+            help="For the projector: hides the chart toolbars.",
         )
 
         try:
             record_end = load_smard().index.max()
-            st.caption(f"Data as of {record_end:%Y-%m-%d %H:%M}")
+            st.caption(f"Data as of {record_end:%d %b %Y, %H:%M}")
         except (FileNotFoundError, RuntimeError):
             st.caption("Data: `data/smard.csv` not found")
         st.caption(f"[Code on GitHub]({REPO_URL})")

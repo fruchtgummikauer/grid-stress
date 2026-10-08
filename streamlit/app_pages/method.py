@@ -1,7 +1,6 @@
 """Method page — how the forecast is set up, scored and turned into risk days.
 
-Streamlit-v3.md §1.3, first three of its five tabs (Models and Ensemble follow later), retold for a
-general audience with interactive Plotly charts:
+Streamlit-v3.md §1.3, its tabs, retold for a general audience with interactive Plotly charts:
 
 1. **What we forecast** — the forecast setting of spec 06 (issue 18:00 on DAY−1, actuals cutoff
    `CUTOFF_HOUR`), the inputs (spec 06 Behaviour 18, default groups) and the validation / test
@@ -12,6 +11,10 @@ general audience with interactive Plotly charts:
    `model_results.load_accuracy` when the model exports exist.
 4. **Risk days** — spec 02's exported thresholds and flags (`risk_labels_daily.csv`), never
    recomputed (CLAUDE.md). An empty flag is "not evaluable" and is left out of every share.
+5. **Combining models** — spec 08's four ensemble methods and their final weights
+   (`ensemble_weights.csv`), `CANDIDATE_SPLIT` only.
+6. **Models** — the stakeholder table of every scored row (accuracy, months, range coverage, best
+   use; no speed column), with more columns on demand and a CSV download.
 """
 
 import numpy as np
@@ -19,13 +22,19 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components.layout import header, next_page
+from components.layout import header, next_page, title_of
 from data_loading import load_risk_labels_daily
+from components.naming import SITUATION, SMARD_NAME, label
 from model_results import (
+    BIN_CATEGORIES,
+    CANDIDATE_SPLIT,
     SMARD_ROW,
+    coverage,
     get_or_info,
+    is_ensemble,
     is_set,
     load_accuracy,
+    load_ensemble_weights,
     load_export,
     model_windows,
 )
@@ -35,15 +44,25 @@ from viz_helpers import (
     BIN_LABEL,
     COLORS,
     INK,
+    MODEL_STYLE,
     MUTED,
+    SEQ_SCALE,
     SERIES_COLOR,
+    SURFACE,
     SURFACE_2,
     TAIL_COLOR,
+    model_label,
     model_line,
     style_plotly,
+    themed,
+    tone,
 )
 
-st.set_page_config(page_title="Method — Grid Stress", page_icon="🧭", layout="wide")
+RESULTS = title_of("app_pages/beat_smard.py")
+
+st.set_page_config(
+    page_title="How do we forecast? — Grid Stress", page_icon="🧭", layout="wide"
+)
 
 # Forecast setting (spec 06 §2.1 DATA_INFO). The actuals lag is still under experimentation: change
 # the cutoff here only, every text and chart on this page follows.
@@ -63,12 +82,12 @@ def no_y_axis(fig):
 
 
 header(
-    "Method: how we forecast and how we check",
+    "How do we forecast?",
     "We don't build a forecast from scratch — we learn where the official one is systematically wrong.",
 )
 st.markdown(f"""
-Every evening at {ISSUE_HOUR}:00, Germany's grid regulator publishes a forecast for each hour of the
-next day. We take the ingredients of that forecast — expected electricity use and expected wind and
+Every evening at {ISSUE_HOUR}:00, SMARD publishes an official forecast for each hour of the next
+day. We take the ingredients of that forecast — expected electricity use and expected wind and
 solar — and train models that learn where they are systematically wrong. Then we check, on a full
 year the models have never seen, whether our corrected forecast misses less often and by less.
 """)
@@ -82,12 +101,14 @@ if windows is not None:
     test_end = test_end + pd.Timedelta(hours=23)
     TEST_LABEL = f"{test_start:%d %b %Y} – {test_end:%d %b %Y}"
 
-tab_setting, tab_smard, tab_metrics, tab_risk = st.tabs(
+tab_setting, tab_smard, tab_metrics, tab_risk, tab_ensemble, tab_models = st.tabs(
     [
         "① What we forecast",
         "② The official forecast",
         "③ How we judge “better”",
         "④ Risk days",
+        "⑤ Combining models",
+        "⑥ Models",
     ]
 )
 
@@ -185,7 +206,7 @@ with tab_setting:
         showgrid=False,
     )
     fig.update_layout(hovermode=False, margin={"t": 30, "b": 30})
-    st.plotly_chart(no_y_axis(fig), config={"staticPlot": True})
+    st.plotly_chart(themed(no_y_axis(fig)), config={"staticPlot": True})
     st.caption(
         f"Measured data reach SMARD with a delay, so at {ISSUE_HOUR}:00 we only know actual values up to "
         f"{CUTOFF_HOUR}:00. Every input our models use respects this line — otherwise a model could "
@@ -197,19 +218,19 @@ with tab_setting:
     st.graphviz_chart(f"""
 digraph {{
   rankdir=LR; bgcolor="transparent";
-  node [shape=box, style="rounded,filled", fillcolor="{SURFACE_2}", color="{COLORS['grid']}",
-        fontname="sans-serif", fontcolor="{INK}", fontsize=12, margin="0.18,0.1"];
-  edge [color="{MUTED}"];
+  node [shape=box, style="rounded,filled", fillcolor="{tone(SURFACE_2)}", color="{tone(COLORS['grid'])}",
+        fontname="sans-serif", fontcolor="{tone(INK)}", fontsize=12, margin="0.18,0.1"];
+  edge [color="{tone(MUTED)}"];
   fc_load  [label="SMARD forecast:\\nelectricity use"];
   fc_vre   [label="SMARD forecast:\\nwind + solar"];
   calendar [label="Calendar:\\nhour, weekday, holidays"];
   recent   [label="Recent actual residual load\\n(2 days and 1 week ago,\\nlatest before {CUTOFF_HOUR}:00)"];
   misses   [label="SMARD's recent misses\\n(last 24 h before {CUTOFF_HOUR}:00)"];
   capacity [label="Installed wind +\\nsolar capacity"];
-  model    [label="Our model\\nlearns SMARD's\\ntypical misses", fillcolor="{ACCENT}", color="{ACCENT}"];
-  ours     [label="Our residual-load\\nforecast", fillcolor="{TARGET_TINT}"];
+  model    [label="Our model\\nlearns SMARD's\\ntypical misses", fillcolor="{ACCENT}", color="{ACCENT}", fontcolor="{INK}"];
+  ours     [label="Our residual-load\\nforecast", fillcolor="{tone(TARGET_TINT)}"];
   official [label="SMARD's own residual-\\nload forecast", style="rounded,dashed"];
-  compare  [label="Compared hour by hour\\non the test year", fillcolor="white"];
+  compare  [label="Compared hour by hour\\non the test year", fillcolor="{tone(SURFACE)}"];
   {{fc_load fc_vre calendar recent misses capacity}} -> model;
   model -> ours -> compare;
   official -> compare [style=dashed];
@@ -265,7 +286,7 @@ digraph {{
         style_plotly(fig, "", "", height=200)
         fig.update_layout(barmode="overlay", hovermode="closest", margin={"t": 10})
         fig.update_xaxes(type="date", showgrid=False)
-        st.plotly_chart(no_y_axis(fig))
+        st.plotly_chart(themed(no_y_axis(fig)))
         st.markdown(f"""
 We tuned every model on the **validation year** ({validation_start:%d %b %Y} – {validation_end:%d %b %Y})
 and only then looked at the **test year** ({TEST_LABEL}) — like a student who practises on old exams
@@ -279,7 +300,7 @@ is refitted every week as new data arrives.
 with tab_smard:
     if smard is None or windows is None:
         st.info(
-            "SMARD's errors on the test year need the SMARD and model exports (see the data check on Team / About)."
+            "SMARD's errors on the test year need the SMARD and model exports (see the data check on Who are we?)."
         )
     else:
         test = smard.loc[test_start:test_end]
@@ -309,7 +330,7 @@ with tab_smard:
         nmae = test_scores.loc["Residual load", "miss as % of typical level (nMAE)"]
         st.markdown(f"""
 - On an average hour of the test year, **SMARD's residual-load forecast misses by about {mae:,.0f} MWh**
-  (roughly {nmae:.0f} % of the typical level).
+  (roughly {nmae:.1f} % of the typical level).
 - **Electricity use is easy to forecast; wind and solar are not** — weather is harder to predict than
   how much power Germany will use.
 - The misses are not random: they depend on the time of day and the season. That is the room our
@@ -354,7 +375,7 @@ with tab_smard:
             fig, f"Residual load on {pd.Timestamp(day):%A, %d %B %Y}", "MWh", height=420
         )
         fig.update_xaxes(tickformat="%H:%M", hoverformat="%H:%M")
-        st.plotly_chart(fig)
+        st.plotly_chart(themed(fig))
         st.caption(
             f"The grey area is SMARD's miss. That day it averaged {daily_miss.loc[pd.Timestamp(day)]:,.0f} MWh "
             f"per hour, against {mae:,.0f} MWh on a typical test-year day."
@@ -387,7 +408,7 @@ with tab_smard:
             )
             fig.update_yaxes(autorange="reversed", showgrid=False)
             fig.update_layout(hovermode="closest", showlegend=False)
-            st.plotly_chart(fig)
+            st.plotly_chart(themed(fig))
         with right:
             st.subheader("When does SMARD miss most?")
             by = st.radio(
@@ -418,7 +439,7 @@ with tab_smard:
                 fig, f"SMARD's average residual-load miss by {by}", "MWh", height=320
             )
             fig.update_layout(hovermode="closest")
-            st.plotly_chart(fig)
+            st.plotly_chart(themed(fig))
 
         with st.expander("All the numbers"):
             st.markdown(f"**Test year** ({TEST_LABEL})")
@@ -443,7 +464,8 @@ with tab_smard:
 with tab_metrics:
     st.markdown("""
 - **Average miss (MAE):** on a typical hour, how far is the forecast from what really happened?
-- **Skill:** the share of SMARD's miss that we remove — 10 % skill means our misses are 10 % smaller.
+- **Smarter than SMARD (skill):** the share of SMARD's miss that we remove — 10 % smarter means our
+  misses are 10 % smaller.
 - **The extremes count separately:** a forecast can be good on ordinary hours and poor exactly when
   it matters, so we also score the highest and lowest hours on their own.
 """)
@@ -451,10 +473,10 @@ with tab_metrics:
     if accuracy is not None:
         smard_mae = accuracy.errors[SMARD_ROW].abs().mean()
         example = 0.9 * smard_mae
-        st.subheader("Skill in one example")
+        st.subheader('"Smarter than SMARD" in one example')
         fig = go.Figure(
             go.Bar(
-                y=["SMARD", "A forecast with 10 % skill"],
+                y=["SMARD", "A forecast 10 % smarter"],
                 x=[smard_mae, example],
                 orientation="h",
                 marker_color=[COLORS["muted"], INK],
@@ -470,10 +492,10 @@ with tab_metrics:
         fig.update_xaxes(range=[0, smard_mae * 1.25])
         fig.update_yaxes(autorange="reversed", showgrid=False)
         fig.update_layout(hovermode="closest", showlegend=False)
-        st.plotly_chart(fig)
+        st.plotly_chart(themed(fig))
         st.caption(
             f"SMARD's real average miss on the test year is {smard_mae:,.0f} MWh. The second bar is an "
-            "illustration, not a result: our models' actual skill is on the **Where we beat SMARD** page."
+            f"illustration, not a result: our models' real results are on **{RESULTS}**."
         )
 
         st.subheader("Ordinary hours and extremes")
@@ -520,7 +542,7 @@ with tab_metrics:
         )
         fig.update_layout(hovermode="closest", bargap=0.02)
         fig.update_xaxes(tickformat=",.0f")
-        st.plotly_chart(fig)
+        st.plotly_chart(themed(fig))
         st.caption(
             f"Besides the average over all hours, we score four groups of test-year hours: the lowest 1 % "
             f"({accuracy.bin_rule('low_extreme')}), all hours below zero, the ordinary middle half "
@@ -533,7 +555,7 @@ with tab_metrics:
 - **Bias** is the average signed miss: does the forecast lean high or low?
 - **Why no percentage error (MAPE)?** Residual load crosses zero, and dividing by numbers close to
   zero makes percentage errors explode.
-- **What a miss costs:** the "Where we beat SMARD" page also prices each miss with the imbalance price
+- **What a miss costs:** the "What is it worth?" page prices each miss with the imbalance price
   (reBAP) — |miss| × |price|. It is a proxy: the reBAP prices the error, it is not what the grid
   operators actually paid.
 """)
@@ -545,8 +567,8 @@ with tab_risk:
     st.markdown("""
 - A day counts as a **risk day** if residual load pokes through a line set by the **previous twelve
   months** — at the top (too little green power) or the bottom (too much).
-- On the low side there is a second, simpler line: **zero**.
-- Low-side risk days are far more common today than in 2019 — that's why we always compare models on
+- For too much green power there is a second, simpler line: **zero**.
+- Days with too much green power are far more common today than in 2019 — that's why we always compare models on
   the same recent year.
 """)
     labels = get_or_info(load_risk_labels_daily, "Risk days")
@@ -562,7 +584,7 @@ with tab_risk:
             horizontal=True,
         )
         low_basis = basis_col.radio(
-            "Low-side line",
+            "Line for too much green power (low)",
             ["rolling", "zero"],
             format_func={"rolling": "lowest 1 % of the past year", "zero": "zero"}.get,
             horizontal=True,
@@ -661,7 +683,7 @@ with tab_risk:
                 "y": 1.02,
             },
         )
-        st.plotly_chart(fig)
+        st.plotly_chart(themed(fig))
         st.caption(
             "The lines are recomputed every day from the previous twelve months only, so they keep up as "
             "the grid changes and never use information from the future. The first year has no lines: "
@@ -682,7 +704,10 @@ with tab_risk:
         days_in_data = labels.groupby(year).size()
         x = [f"{y} (so far)" if days_in_data[y] < 365 else str(y) for y in rates.index]
         fig = go.Figure()
-        for direction, name in [("high", "High side"), ("low", "Low side")]:
+        for direction, name in [
+            ("high", "Too little green power (high)"),
+            ("low", "Too much green power (low)"),
+        ]:
             fig.add_trace(
                 go.Bar(
                     x=x,
@@ -695,7 +720,7 @@ with tab_risk:
             )
         style_plotly(fig, "Share of days flagged as risk days", "% of days", height=400)
         fig.update_layout(barmode="group", hovermode="closest")
-        st.plotly_chart(fig)
+        st.plotly_chart(themed(fig))
         st.caption(
             "Only days that can be judged count: a complete day with a line to compare against. Years "
             "without bars have no such days on that side."
@@ -704,10 +729,10 @@ with tab_risk:
         with st.expander("Reference: the whole-record line"):
             static = pd.DataFrame(
                 {
-                    "high side (whole-record top 1 %)": labels[
+                    "too little green power (whole-record top 1 %)": labels[
                         f"high_risk_static_{rule}"
                     ],
-                    "low side (whole-record bottom 1 %)": labels[
+                    "too much green power (whole-record bottom 1 %)": labels[
                         f"low_risk_static_{rule}"
                     ],
                 }
@@ -726,6 +751,265 @@ with tab_risk:
                 "so it is only a reference, not how we define risk days."
             )
 
+# =================================================================================================
+# ⑤ Combining models (spec 08: methods and weights)
+# =================================================================================================
+REGIME_LABEL = {  # spec 08 Behaviour 11: by the members' mean forecast, edges from the validation year
+    "below_zero": "Forecast below zero",
+    "low": "Low (0 up to the lowest quarter)",
+    "ordinary": "Normal (middle half)",
+    "high": "High (top quarter, without the top 1 %)",
+    "high_extreme": "Highest 1 %",
+}
+with tab_ensemble:
+    weights = get_or_info(load_ensemble_weights, "The ensemble weights")
+    if weights is not None:
+        weights = weights[weights["split_method"] == CANDIDATE_SPLIT]
+        members = list(dict.fromkeys(weights["member"]))
+        st.markdown(f"""
+No single model is best everywhere: one handles windy nights, another sunny afternoons. An
+**ensemble** is a weighted average of several forecasts — here our {len(members) - 1} single models
+**plus SMARD's own forecast**. We tried four ways of choosing the weights:
+
+- **Equal mean:** every member counts the same.
+- **Weighted:** one fixed set of weights, learned on the year before the test year.
+- **Regime-weighted:** separate weights for each forecast level, from below zero to the highest
+  1 %. Levels with few hours are pulled towards the fixed weights, so a handful of hours can't
+  swing them.
+- **Adaptive:** weights that follow which members did best in recent weeks.
+
+Every weight is chosen on the year before the test year; the test year only grades the result.
+""")
+
+        def member_name(member):
+            return "SMARD" if member == "smard" else model_label(member)
+
+        def member_color(member):
+            return MODEL_STYLE[member]["color"]
+
+        regime = weights[weights["method"] == "regime_weighted"].pivot(
+            index="regime", columns="member", values="weight"
+        )
+        if len(regime):
+            regime = regime.loc[[r for r in REGIME_LABEL if r in regime.index], members]
+            fig = go.Figure(
+                go.Heatmap(
+                    z=100 * regime.to_numpy(),
+                    x=[member_name(m) for m in members],
+                    y=[REGIME_LABEL[r] for r in regime.index],
+                    colorscale=SEQ_SCALE,
+                    zmin=0,
+                    text=[
+                        [f"{100 * w:.1f} %" for w in row] for row in regime.to_numpy()
+                    ],
+                    texttemplate="%{text}",
+                    hovertemplate="%{y}, %{x}: %{z:.1f} %<extra></extra>",
+                    colorbar={"title": "weight (%)"},
+                )
+            )
+            style_plotly(
+                fig,
+                "Regime-weighted: who counts how much at each forecast level",
+                "",
+                height=420,
+            )
+            fig.update_layout(hovermode="closest")
+            fig.update_yaxes(autorange="reversed", showgrid=False, tickformat="")
+            st.plotly_chart(themed(fig))
+            heaviest = regime.idxmax(axis=1)
+            st.caption(
+                "Each row adds up to 100 %. Heaviest member per level: "
+                + "; ".join(
+                    f"{REGIME_LABEL[r]} → {member_name(m)}" for r, m in heaviest.items()
+                )
+                + ". The level comes from the members' own forecasts, never from what then happened."
+            )
+
+        left, right = st.columns(2)
+        with left:
+            fixed = (
+                weights[weights["method"] == "weighted"]
+                .set_index("member")["weight"]
+                .reindex(members)
+            )
+            fig = go.Figure(
+                go.Bar(
+                    x=[member_name(m) for m in members],
+                    y=100 * fixed.to_numpy(),
+                    marker_color=[member_color(m) for m in members],
+                    text=[f"{100 * w:.1f} %" for w in fixed],
+                    textposition="outside",
+                    hovertemplate="%{x}: %{y:.1f} %<extra></extra>",
+                )
+            )
+            style_plotly(
+                fig, "Weighted: one fixed set of weights", "weight (%)", height=400
+            )
+            fig.update_layout(hovermode="closest", showlegend=False)
+            st.plotly_chart(themed(fig))
+        with right:
+            adaptive = weights[weights["method"] == "adaptive"].copy()
+            adaptive["day"] = pd.to_datetime(adaptive["regime"], format="%Y-%m-%d")
+            if windows is not None:
+                adaptive = adaptive[adaptive["day"].between(test_start, test_end)]
+            daily = adaptive.pivot(index="day", columns="member", values="weight")
+            fig = go.Figure()
+            for member in [m for m in members if m in daily]:
+                fig.add_trace(
+                    go.Scatter(
+                        x=daily.index,
+                        y=100 * daily[member].to_numpy(),
+                        name=member_name(member),
+                        stackgroup="weights",
+                        line={"width": 0.5, "color": member_color(member)},
+                        hovertemplate="%{y:.1f} %",
+                    )
+                )
+            style_plotly(
+                fig, "Adaptive: weights day by day, test year", "weight (%)", height=400
+            )
+            fig.update_yaxes(range=[0, 100])
+            st.plotly_chart(themed(fig))
+        st.caption(
+            "SMARD's own forecast is a member too: where it is good, the ensemble leans on it. The "
+            f"page **{RESULTS}** shows how each ensemble does against SMARD and against our best models."
+        )
+
+# =================================================================================================
+# ⑥ Models (stakeholder table; no speed column: team decision 2026-10-07)
+# =================================================================================================
+MODEL_TYPE = {
+    "linear_direct": "straight-line formula",
+    "lgbm_direct": "trees",
+    "xgb_direct": "trees",
+    "lgbm_hybrid": "trend + trees",
+    "xgb_hybrid": "trend + trees",
+    "random_forest_hybrid": "trend + trees",
+    "seasonal_naive": "repeat last week",
+}
+FIXED_USE = {  # what a row is good for, beyond the computed picks
+    "ensemble_equal_mean": "Simplest combination: nothing to tune",
+    "ensemble_weighted": "Fixed weights, easy to audit",
+    "ensemble_adaptive": "Follows recent conditions",
+    "linear_direct": "Fully transparent baseline",
+    "seasonal_naive": "Sanity floor",
+}
+with tab_models:
+    if accuracy is None or accuracy.problems:
+        st.info("The model exports are not available, so the table can't be shown.")
+    else:
+        st.markdown(
+            "Every model we scored on the test year, side by side — for readers who want the "
+            f"numbers behind **{RESULTS}**. All values are computed from the model exports."
+        )
+        options = st.columns(2)
+        more = options[0].toggle("More columns", key="models_more")
+        everything = options[1].toggle(
+            "Include 'static' variants and the sanity check", key="models_all"
+        )
+        rows = [
+            row
+            for row in accuracy.value.index
+            if row != SMARD_ROW
+            and (everything or (row[1] == CANDIDATE_SPLIT))
+            and row[0] != "sarimax_fourier"
+        ]
+        uses = {row: [] for row in rows}
+        if accuracy.picks["overall"] and accuracy.picks["overall"][0] in uses:
+            uses[accuracy.picks["overall"][0]].append(
+                "Our best model overall (lowest average miss)"
+            )
+        best_at = {
+            "low_extreme": "Our best at too much green power (low)",
+            "high_extreme": "Our best at too little green power (high)",
+        }
+        for category in ["below_zero", "low_extreme", "high_extreme"]:
+            if accuracy.picks[category] and accuracy.picks[category][0] in uses:
+                uses[accuracy.picks[category][0]].append(
+                    best_at.get(
+                        category, f"Best single model for {SITUATION[category].lower()}"
+                    )
+                )
+        for row in rows:
+            if row[0] in FIXED_USE:
+                uses[row].append(FIXED_USE[row[0]])
+
+        value = accuracy.value
+        table = pd.DataFrame(
+            {
+                "model": [label(row) for row in rows],
+                "type": [
+                    (
+                        "combination of 7"
+                        if is_ensemble(row)
+                        else MODEL_TYPE.get(row[0], "")
+                    )
+                    for row in rows
+                ],
+                "avg miss (MWh)": [value.loc[row, "MAE"] for row in rows],
+                "skill vs SMARD (%)": [value.loc[row, "skill_pct"] for row in rows],
+                f"months ahead (of {len(accuracy.full_months)})": [
+                    value.loc[row, "months_beating_smard"] for row in rows
+                ],
+                "95 % range holds (%)": [coverage(accuracy, row) for row in rows],
+                "best use": ["; ".join(uses[row]) for row in rows],
+            }
+        )
+        formats = {
+            "avg miss (MWh)": "{:,.0f}",
+            "skill vs SMARD (%)": "{:+.1f}",
+            f"months ahead (of {len(accuracy.full_months)})": "{:.0f}",
+            "95 % range holds (%)": "{:.1f}",
+        }
+        if more:
+            extra = {
+                "RMSE (MWh)": ("RMSE", "{:,.0f}"),
+                "bias (MWh)": ("bias", "{:+,.0f}"),
+                **{
+                    f"miss, {SITUATION[c].lower()} (MWh)": (
+                        f"MAE_{c}_by_actual",
+                        "{:,.0f}",
+                    )
+                    for c in BIN_CATEGORIES
+                },
+                "range width (MWh)": ("mean_width", "{:,.0f}"),
+                "vs spec 08's best member (%)": ("skill_vs_best_pct", "{:+.1f}"),
+            }
+            for column, (metric, fmt) in extra.items():
+                if metric in value:
+                    table[column] = [value.loc[row, metric] for row in rows]
+                    formats[column] = fmt
+        smard_row = {"model": SMARD_NAME, "type": "official benchmark"}
+        smard_row["avg miss (MWh)"] = value.loc[SMARD_ROW, "MAE"]
+        for column in table.columns:
+            metric = {
+                "RMSE (MWh)": "RMSE",
+                "bias (MWh)": "bias",
+                **{
+                    f"miss, {SITUATION[c].lower()} (MWh)": f"MAE_{c}_by_actual"
+                    for c in BIN_CATEGORIES
+                },
+            }.get(column)
+            if metric:
+                smard_row[column] = value.loc[SMARD_ROW, metric]
+        table = pd.concat(
+            [table.sort_values("avg miss (MWh)"), pd.DataFrame([smard_row])],
+            ignore_index=True,
+        )
+        st.dataframe(table.style.format(formats, na_rep="—"), hide_index=True)
+        st.caption(
+            f"Test year, {len(accuracy.common):,} hours. Skill = how much of SMARD's miss a model "
+            "removes. *Months ahead*: full months with a smaller average miss than SMARD. The best "
+            f"uses come from the pick rules on **{RESULTS}**; ensembles are never picked as a "
+            "single model."
+        )
+        st.download_button(
+            "⬇️ Download the table (CSV)",
+            table.to_csv(index=False).encode("utf-8"),
+            file_name="grid-stress-models.csv",
+            mime="text/csv",
+        )
+
 st.info(
     """
 **What this can't tell us**
@@ -739,7 +1023,8 @@ st.info(
 st.caption(
     "Sources: `notebooks/03_risk_classification/risk-definition.ipynb` (risk labels), "
     "`notebooks/02_forecast_metrics/forecast-metrics-claude.ipynb` (SMARD errors), "
-    "`notebooks/05_modeling/regression-models-claude.ipynb` (forecast setting, windows, scoring)."
+    "`notebooks/05_modeling/regression-models-claude.ipynb` (forecast setting, windows, scoring), "
+    "`notebooks/05_modeling/ensemble-claude.ipynb` (ensemble weights)."
 )
 
 next_page("app_pages/method.py")

@@ -217,7 +217,8 @@ MODEL_STYLE = {
         "color": "#7385CB",
     },  # periwinkle (off)
     "seasonal_naive": {"label": "Seasonal naive (DAY−7)", "color": "#A3A7B6"},
-    # Spec 08's ensembles: one is shown at a time (viz-01's ensemble pick), so they share a colour
+    # Spec 08's ensembles share one colour: a family, not four series. ENSEMBLE_MARK tells them
+    # apart (bar pattern, marker symbol), always next to a label
     "ensemble_regime_weighted": {
         "label": "Ensemble (regime-weighted)",
         "color": ENSEMBLE_COLOR,
@@ -254,6 +255,24 @@ RISK_COLOR = {
 }
 OUTCOME_COLOR = {"quiet": SURFACE_2, "not evaluable": SURFACE}
 HOLIDAY_COLOR = ACCENT  # logo amber
+
+
+ENSEMBLE_MARK = {
+    "ensemble_regime_weighted": {"pattern": "", "symbol": "circle"},
+    "ensemble_weighted": {"pattern": "/", "symbol": "square"},
+    "ensemble_equal_mean": {"pattern": ".", "symbol": "diamond"},
+    "ensemble_adaptive": {"pattern": "x", "symbol": "triangle-up"},
+}
+
+
+def model_pattern(key):
+    """Plotly bar `pattern_shape` of a model key: a pattern per ensemble, none for the rest."""
+    return ENSEMBLE_MARK.get(key, {}).get("pattern", "")
+
+
+def model_symbol(key):
+    """Plotly marker symbol of a model key: a symbol per ensemble, a circle for the rest."""
+    return ENSEMBLE_MARK.get(key, {}).get("symbol", "circle")
 
 
 def model_label(key):
@@ -322,6 +341,88 @@ def style_plotly(fig, title, ylabel, xlabel=None, height=460):
             modebar={"bgcolor": hidden, "color": hidden, "activecolor": hidden}
         )
     return fig
+
+
+# --- Dark mode ------------------------------------------------------------------------------------
+# Streamlit shows the light or the dark theme of .streamlit/config.toml (the visitor's system
+# setting, or the ⋮ menu → Settings). Pages keep using the light tokens above; `themed(fig)` swaps
+# each one for its dark counterpart at render time, so no page needs dark-specific code. Every dark
+# colour was checked with the dataviz validator on the dark surface (--mode dark --surface
+# #0F1B2D): the series and model sets separate at least as well as their light originals.
+# Heatmap colour scales are left as they are: they carry their own legend.
+DARK = {
+    # Text and surfaces
+    INK: "#E6EAF2",  # text, the actual / residual-load line
+    MUTED: "#A7AEC2",  # captions, axis labels
+    SURFACE: "#0F1B2D",  # deep navy page and chart background
+    SURFACE_2: "#1A2A42",
+    COLORS["grid"]: "#2A3B57",  # gridlines, also the "ordinary hours" bin
+    COLORS[
+        "muted"
+    ]: "#766259",  # SMARD (still dashed): warm slate, apart from teal and blue
+    "#A3A7B6": "#7C8196",  # seasonal naive
+    # Series (EDA order; teal and blue are also the first two models)
+    PALETTE[0]: "#2EA5A9",  # teal
+    PALETTE[1]: "#4461C3",  # blue
+    PALETTE[2]: "#A45300",  # deep amber
+    PALETTE[3]: "#966298",  # plum
+    PALETTE[4]: "#F25E3D",  # vermillion
+    PALETTE[5]: "#7386FF",  # indigo
+    # Models (teal and blue above)
+    MODEL_COLOR["linear_direct"]: "#4F802C",  # green
+    MODEL_COLOR["xgb_hybrid"]: "#944E92",  # pink -> orchid
+    MODEL_COLOR["lgbm_hybrid"]: "#D5616D",  # wine -> rose red
+    MODEL_COLOR["xgb_direct"]: "#8783EA",  # violet
+    ENSEMBLE_COLOR: "#E9B6C9",  # the lightest series in dark, as maroon is the darkest in light
+    # Region, threshold and flag tints: darker, so a fill doesn't glare on navy
+    "#CCD3EB": "#3A4870",  # lavender
+    "#A6B2E3": "#5466A8",  # light periwinkle
+    "#E8B3A7": "#9A5446",  # light vermillion
+    "#99A8DE": "#5A6DB0",
+    "#A1C8CA": "#3F7476",  # sage
+    "#A9B8E0": "#4E6098",
+    "WHITE": "#0F1B2D",
+    "RGBA(255,255,255,0.8)": "rgba(15,27,45,0.8)",
+    "RGBA(255,255,255,0.85)": "rgba(15,27,45,0.85)",
+}
+DARK = {light.upper(): dark for light, dark in DARK.items()}
+
+
+def is_dark():
+    """True when the visitor sees the dark theme. Streamlit reports a theme switch with the next
+    rerun (any click), and on the very first load it may not know yet: then light."""
+    import streamlit as st
+
+    try:
+        return st.context.theme.type == "dark"
+    except Exception:
+        return False
+
+
+def tone(color):
+    """A light-theme token in the active theme, for colours outside Plotly (Graphviz, HTML)."""
+    return DARK.get(color.upper(), color) if is_dark() else color
+
+
+def _recolor(value):
+    """`value` with every light token swapped for its dark one; colour scales untouched."""
+    if isinstance(value, dict):
+        return {k: v if k == "colorscale" else _recolor(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_recolor(v) for v in value]
+    if isinstance(value, np.ndarray) and value.dtype.kind in "OU":
+        return np.array([_recolor(v) for v in value.ravel()], dtype=object).reshape(
+            value.shape
+        )
+    if isinstance(value, str) and len(value) <= 24:
+        return DARK.get(value.upper(), value)
+    return value
+
+
+def themed(fig):
+    """The figure in the active theme: unchanged in light, dark tokens in dark. Wrap every
+    figure passed to `plotly_chart`."""
+    return go.Figure(_recolor(fig.to_plotly_json())) if is_dark() else fig
 
 
 def _demo_mode():

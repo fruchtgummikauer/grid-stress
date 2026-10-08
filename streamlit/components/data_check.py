@@ -1,4 +1,4 @@
-"""Data check for the Team / About page (Streamlit-v3.md §1.2 block 5, §2.3; moved off Home so
+"""Data check for the Who are we? page (Streamlit-v3.md §1.2 block 5, §2.3; moved off Home so
 public visitors don't meet developer tooling first).
 
 Lists every file the app reads, found or missing, with its modification date and the notebook
@@ -22,14 +22,15 @@ SMARD_PRODUCER = "notebooks/API-connection.ipynb"
 
 # What each file feeds in the app
 USED_BY = {
-    "smard": "Where we beat SMARD (SMARD's hourly errors)",
-    "scoreboard": "Where we beat SMARD",
-    "hourly": "Where we beat SMARD",
-    "risk_daily": "Where we beat SMARD (risk zoom weeks)",
-    "risk_hourly": "Where we beat SMARD (risk zoom weeks)",
-    "ensemble_hourly": "Where we beat SMARD (ensemble, coming soon)",
-    "ensemble_scoreboard": "Where we beat SMARD (ensemble, coming soon)",
-    "ensemble_weights": "Where we beat SMARD (ensemble, coming soon)",
+    "smard": "Do we beat SMARD?, Try it yourself (SMARD's hourly errors)",
+    "scoreboard": "Do we beat SMARD?, Try it yourself",
+    "hourly": "Do we beat SMARD?, Try it yourself",
+    "risk_daily": "Do we beat SMARD? (risk days), Try it yourself (risk weeks)",
+    "risk_hourly": "Do we beat SMARD? (risk days)",
+    "ensemble_hourly": "Do we beat SMARD? (ensembles)",
+    "ensemble_scoreboard": "Do we beat SMARD? (ensembles)",
+    "ensemble_weights": "How do we forecast? (ensemble weights)",
+    "rebap_cost": "What is it worth?",
 }
 
 
