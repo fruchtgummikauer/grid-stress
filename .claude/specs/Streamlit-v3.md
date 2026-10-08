@@ -1,6 +1,6 @@
 # Streamlit v3 — App Structure and UX
 
-- Status: **Run** (2026-10-07, PR #51, merged; final review and dark mode 2026-10-08, §4 14–15).
+- Status: **Run** (2026-10-07, PR #51, merged; final review, dark mode, reBAP compare 2026-10-08, §4 14–16).
   Planned with one sub-spec per page; instead every page was rebuilt directly after a page-by-page
   UX review for a public audience. §1 is the plan as reviewed, §2 what was built, §4 the changes.
 - Builds on [Streamlit-draft.md](Streamlit-draft.md) (v1 §1–§16, PR #28; v2 §17, PR #43), which
@@ -103,11 +103,13 @@ Intro, then `st.tabs`; a "What this can't tell us" `st.info` below the tabs on e
 
 ### 2.5 What is it worth? (spec 11)
 
-Simplifications box first (one price, amount not direction, hourly, yardstick not bill); **only
-our ensemble** is priced, no menu (`model_rebap_cost_hourly.csv`; never `rebap.csv`); "Calculate"
-reveals tiles, running total (three largest hours), saved by situation, and an expander (formula,
-top-10 hours, every priced model in euros). The click fires a CSS-only **💸 rise** (bottom → top,
-3 s, off under reduced motion); `rebap_revealed` keeps the numbers. Teaser and summary: ensemble.
+"What is the reBAP?" (the German name, at most four sentences), then the simplifications box (one
+price, amount not direction, hourly, yardstick not bill). Default: **our ensemble and our best model
+overall**; "Compare all priced models" opens a multiselect of every priced row, all on
+(`model_rebap_cost_hourly.csv`; never `rebap.csv`). "Calculate" reveals tiles (up to three
+forecasts), saved per forecast, running total (three largest hours of the first), saved by
+situation, an expander (formula, top-10 hours, every priced model). CSS-only **💸 rise** on the
+click (3 s, off under reduced motion); `rebap_revealed` keeps the numbers. Teaser, summary: ensemble.
 
 ### 2.6 Who are we?
 
@@ -138,10 +140,10 @@ streamlit/
 
 - Run `uv run streamlit run streamlit/streamlit_app.py` from the repo root.
 - **State:** `demo_mode`; `{beat,explore}_{compare,ensemble,static,rows}`, `{h2h,eve,explore}_{actual,smard}`;
-  `h2h_*`, `eve_*` / `eve_revealed`, `rebap_revealed`, `models_*`, `smard_miss_by`; risk view `rule_*` / `basis_*` / `zoom_*`.
+  `h2h_*`, `eve_*` / `eve_revealed`, `rebap_revealed` / `rebap_compare` / `rebap_rows`, `models_*`, `smard_miss_by`; risk view `rule_*` / `basis_*` / `zoom_*`.
 - **Demo mode:** hides Plotly toolbars and the data check.
-- **Words:** too little (high) / too much (low) green power, "green shortage / surplus" in labels
-  (glossary); X.x % smarter than SMARD; saw it coming / missed it; "line"; million €; no P-notation,
+- **Words:** too little (high) / too much (low) green power, also in labels ("best with too much
+  green power"), no coined terms; X.x % smarter than SMARD; saw it coming / missed it; "line"; million €; no P-notation,
   recall or precision. **Numbers:** percentages one decimal, MWh and counts whole. Page names: `title_of`.
 - **Caching:** `@st.cache_data` keyed on the file's modification time. A missing export hides or
   explains only its section; `get_or_stop` only where a page can't work without the file.
@@ -156,19 +158,16 @@ streamlit/
 
 1. **No sub-specs.** Pages rebuilt one at a time from a UX review, each confirmed by the team.
 2. **Plotly on every page**, matplotlib on none (the plan kept matplotlib on Background).
-3. **Home:** fact tiles and the week picker instead of a KPI row of model results; the data
-   check moved to Who are we?.
+3. **Home:** fact tiles and the week picker instead of model KPIs; data check on Who are we?.
 4. **Background:** chapters, technical figures in an expander; new negative-hours bar; mirrored
    bars and ramps by year replace the grouped bars and the ramp-percentile curve. "Falls year on
    year" became "has drifted down over the record" (matched-window medians are not monotonic).
-5. **Method:** risk days read the export instead of recomputing thresholds (CLAUDE.md rule);
-   SMARD scored on the test year, not the whole record; windows from the model saves.
+5. **Method:** risk days read from the export (CLAUDE.md); SMARD on the test year; saved windows.
 6. **Do we beat SMARD?:** one page-wide switch replaces five multiselects; counts replace the
    scatter as the default view; the week chart and the explorer merged; spec 09's pick rule.
 7. **Ensemble** (after PR #51): see item 11; the placeholders (`ensemble_slot`) are gone.
 8. **Not built:** `content/models.yaml` (one-liners live in `components/naming.py`).
-9. **Team / About** built with the team's names, titles and one-liners; SMARD attribution and
-   licence links added after checking SMARD's terms.
+9. **Who are we?** team names, titles, one-liners; SMARD attribution and licence after its terms.
 10. **reBAP** (after PR #51): a section, then its own page (item 12); `load_rebap_cost` stops when
     the export is not from the model exports' run (hours, actuals, misses, cost = |miss| × price).
 11. **Ensemble** (team, 2026-10-07): out of the headline; all four methods in the compare view.
@@ -183,6 +182,8 @@ streamlit/
     elsewhere; reference toggles; "Models compared" = 6 (no seasonal naive, as on Method).
 15. **Dark mode** (2026-10-08): `[theme.dark]` (navy `#0F1B2D`, amber primary); `DARK` maps every
     light token (dataviz-validated on navy); heatmap scales stay light; navy text on amber nodes.
+16. **reBAP compare** (team, 2026-10-08): ensemble + best model by default, a switch for every
+    priced model (reverses item 12's ensemble only); the reBAP explained; labels without coined terms.
 
 ## 5. Next steps
 
