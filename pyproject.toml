@@ -3,7 +3,7 @@ name = "grid-stress"
 version = "0.1.0"
 description = "Capstone Project on Forecasting the German Power Grid Load & Stability"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "matplotlib",
     "numpy",
@@ -39,3 +39,4 @@ dev = [
 
 [tool.uv]
 package = false
+system-certs = true
